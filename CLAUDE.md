@@ -19,6 +19,8 @@ Named versions are git tags (`git tag -l`). When the user says "save this as ver
 
 - `v2` (2026-10-20): emotion-card picker. Nine framed cards in poster order and colors (Sadness, Disgust, Ennui, Anger, Anxiety, Embarrassment, Envy, Fear, Joy) with original drawn faces; Joy selected by default. Do not use the Inside Out character artwork from the user's reference image: it is copyrighted and the site is public.
 
+- `v3` (2026-10-21): Cat Emotions ball game (`memories.html`): 16 cut-out cat balls in mood-meter colours, main row of five plus a grouped More panel, balls knock each other, touching matches merge instantly, tap a ball to pop it into sand, no overlaps, smooth under spamming (build 2026-10-21b).
+
 To go back to a version, restore its files onto `main` with a new commit (`git checkout vN -- .` then commit and push) instead of rewriting history, so the site and every later version stay intact.
 
 ## Cat Emotions experiment (`memories.html`, page title "Cat Emotions")
