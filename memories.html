@@ -1628,6 +1628,7 @@
       await fdb.ref('state').set({ gen: g, key: teacherCode });
       showNotice('');
       fdb.ref('pours/c' + oldSand).remove().catch(() => {});
+      fdb.ref('pours/s' + oldSand).remove().catch(() => {});
       fdb.ref('pours/m' + oldSand).remove().catch(() => {});
       fdb.ref('pours/' + oldSand).remove().catch(() => {});
     } catch (_) {

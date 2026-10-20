@@ -21,6 +21,8 @@ Named versions are git tags (`git tag -l`). When the user says "save this as ver
 
 - `v3` (2026-10-21): Cat Emotions ball game (`memories.html`): 16 cut-out cat balls in mood-meter colours, main row of five plus a grouped More panel, balls knock each other, touching matches merge instantly, tap a ball to pop it into sand, no overlaps, smooth under spamming (build 2026-10-21b).
 
+- `v4` (2026-10-21): Cat Emotions Tube (`slide.html`): cats enter at the top and travel single file through a winding tube (six rows joined by U-turns, like a marble-run board) and line up from the far end; tap a cat to pop it into sand that fades, and every cat behind rolls forward one place; no merging. `memories.html` (v3) stays live alongside it.
+
 To go back to a version, restore its files onto `main` with a new commit (`git checkout vN -- .` then commit and push) instead of rewriting history, so the site and every later version stay intact.
 
 ## Cat Emotions experiment (`memories.html`, page title "Cat Emotions")
@@ -44,6 +46,10 @@ Its drops live in Firebase at `pours/c<gen>` (the earlier nine-colour marble tes
 - Taps: the whole glowing ball counts (radius x1.3 + 3); a tap on a ball that is still appearing does nothing.
 - Touching same-kind marbles always combine (nearest open spot above, else dropped from the top; if the box is full they stay apart). After every roll the marble is pushed out of neighbours and, if still wedged, moved to the nearest clear spot in fixed directions; grains it was nudged into are moved over its top (`shiftSandOut`).
 - Physics tests live in the conversation scratchpad, not the repo; when changing physics, re-check that shuffled arrival orders give identical marbles and sand, and that nothing overlaps.
+
+## Cat Emotions Tube (`slide.html`, v4)
+
+Same cats, picker, sharing and modes as `memories.html`, but the world is a single-file queue in a winding tube. The shared state is only the order of the cats (`balls`, front first); positions come from `layout()` along the tube's centre line (`PATH`, `SLOTS`), so screens can't disagree. Adding pushes a cat at the back (ignored when `CAPACITY`, fixed at 70, is reached); popping removes it and everyone behind rolls forward one slot (a ripple in `makeTimeline().roll`). Popped sand is only a fading animation (`drawBursts`), not lasting sand. Its drops live at `pours/s<gen>`; screens report `splay`/`sdisplay`; Start fresh on any page clears it too. Build label `build YYYY-MM-DDtN`.
 
 ## Files
 

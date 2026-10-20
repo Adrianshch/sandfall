@@ -1,0 +1,1350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cat Emotions Tube</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@500&family=Oswald:wght@600&display=swap">
+<style>
+  [hidden] { display: none !important; }
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; font-size: 14px; }
+
+  /* Layout: header row, one shared memory box scaled to fit (same 480x300 world on every screen), then the marble picker (play) or a quiet footer (display). */
+  :root {
+    --bg: #e4e9ed;
+    --sky: #f3f6f8;
+    --box: #fbfcfd;
+    --ink: #1c2530;
+    --muted: #5a6876;
+    --surface: rgba(255, 255, 255, 0.82);
+    --line: rgba(28, 37, 48, 0.12);
+    --accent: #b8612a;
+    --live: #2f9e6a;
+    --warn: #b5482f;
+    --shadow: 0 10px 30px rgba(28, 37, 48, 0.14);
+    --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --font-label: "Oswald", "Arial Narrow", "Helvetica Neue", sans-serif-condensed, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10151b; --sky: #1a222b; --box: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
+      --surface: rgba(24, 31, 39, 0.84); --line: rgba(232, 237, 242, 0.12);
+      --accent: #e59a5e; --live: #4cc48c; --warn: #f07a5e; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151b; --sky: #1a222b; --box: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
+    --surface: rgba(24, 31, 39, 0.84); --line: rgba(232, 237, 242, 0.12);
+    --accent: #e59a5e; --live: #4cc48c; --warn: #f07a5e; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+
+  html, body { height: 100%; }
+  body {
+    background: linear-gradient(to bottom, var(--sky), var(--bg)) var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .app {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-block: 14px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    box-sizing: border-box;
+  }
+
+  .top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .mark { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .mark h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.5rem;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .beta {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    padding: 2px 6px 1px;
+  }
+  .mark p { margin: 0; font-size: 0.82rem; color: var(--muted); }
+  .notice { margin: 0; font-size: 0.82rem; font-weight: 600; color: var(--warn); }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 12px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .status.live .dot { background: var(--live); box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 25%, transparent); }
+  .status.live { color: var(--ink); }
+
+  .box {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    place-items: center;
+  }
+  canvas {
+    display: block;
+    max-width: 100%;
+    background: var(--box);
+    border-radius: 14px;
+    box-shadow: 0 0 0 1px var(--line), var(--shadow);
+    touch-action: none;
+  }
+  body[data-mode="play"] canvas { cursor: pointer; }
+  .empty {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    text-align: center;
+    padding: 24px;
+  }
+  .empty p {
+    margin: 0;
+    max-width: 30ch;
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: clamp(1rem, 2.4vw, 1.6rem);
+    line-height: 1.3;
+    color: var(--muted);
+    text-wrap: balance;
+  }
+
+  .dock {
+    align-self: center;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px 14px;
+    padding: 10px 12px 8px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .moods {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 90px));
+    gap: 6px;
+    align-items: start;
+  }
+  .mood {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 6px 2px 4px;
+    background: none;
+    border: 0;
+    border-radius: 12px;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  /* Each picker marble is drawn on a canvas (same look as the falling ones); CSS adds the glow. */
+  .orb {
+    display: block;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    box-shadow: 0 0 14px 2px color-mix(in srgb, var(--c) 55%, transparent);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .mood .label {
+    font: 600 var(--fs, 0.66rem) / 1 var(--font-label);
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    color: var(--muted);
+  }
+  .mood:hover .orb { transform: translateY(-2px); }
+  .mood[aria-pressed="true"] .orb {
+    transform: translateY(-3px) scale(1.12);
+    box-shadow: 0 0 26px 8px color-mix(in srgb, var(--c) 75%, transparent);
+  }
+  .mood[aria-pressed="true"] .label { color: var(--ink); }
+  .mood:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* More: a dashed ring with a plus, or the chosen side-panel marble */
+  .more .ring {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    box-sizing: border-box;
+    border: 2px dashed var(--muted);
+    transition: transform 0.15s ease;
+  }
+  .more .plus { font: 600 1.9rem/1 var(--font-display); color: var(--muted); }
+  .more .ring .orb { position: absolute; inset: -2px; width: 72px; height: 72px; }
+  .more[aria-pressed="true"] .ring { border-color: transparent; }
+  .more[aria-pressed="true"] .orb { transform: translateY(-3px) scale(1.12); box-shadow: 0 0 26px 8px color-mix(in srgb, var(--c) 75%, transparent); }
+  .more:hover .ring { transform: translateY(-2px); }
+
+  .scrim { position: fixed; inset: 0; z-index: 20; background: rgba(10, 14, 20, 0.28); }
+  .panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 21;
+    width: min(300px, 84vw);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    box-shadow: -12px 0 30px rgba(0, 0, 0, 0.22);
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    transform: translateX(105%);
+    visibility: hidden;
+    transition: transform 0.25s ease, visibility 0.25s;
+  }
+  .panel.open { transform: none; visibility: visible; }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 16px 8px;
+  }
+  .panel-head h2 { margin: 0; font: 700 1.15rem var(--font-display); }
+  .close {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    font: 400 1.5rem/1 var(--font-body);
+    cursor: pointer;
+  }
+  .close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .panel-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 14px 8px;
+    padding: 8px 16px 24px;
+  }
+  .panel-list .orb { width: 96px; height: 96px; }
+  .panel-list .label { font-size: 0.78rem; }
+  .panel-list .group {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0 -4px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .panel-list .group:first-child { margin-top: 0; }
+  .panel-list .group b { color: var(--ink); font-weight: 700; }
+  .panel-list .swatch { width: 12px; height: 12px; border-radius: 50%; background: var(--c); flex: none; }
+
+  .build { font-size: 0.62rem; color: var(--muted); opacity: 0.7; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .count {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    padding-inline: 4px;
+  }
+
+  .foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .teacher { display: flex; gap: 8px; opacity: 0.55; transition: opacity 0.2s ease; }
+  .teacher:hover, .teacher:focus-within { opacity: 1; }
+  .btn {
+    font: 600 0.8rem var(--font-body);
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--muted); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn.armed { color: var(--warn); border-color: var(--warn); }
+
+  body[data-mode="display"] .mark h1 { font-size: 1.25rem; }
+
+  @media (max-width: 760px) {
+    .dock { width: 100%; }
+    .moods { grid-template-columns: repeat(6, minmax(0, 1fr)); width: 100%; gap: 2px; }
+    .moods .orb, .more .ring, .more .ring .orb { width: 54px; height: 54px; }
+    .moods .label { font-size: 0.56rem; }
+  }
+  @media (max-width: 480px) {
+    .mark h1 { font-size: 1.25rem; }
+    .hint-wide { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .orb, .teacher, .panel, .more .ring { transition: none; }
+  }
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="config.js"></script>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div class="mark">
+      <h1>Cat Emotions <span class="beta">tube</span></h1>
+      <p id="hint"></p>
+      <p class="notice" id="notice" hidden></p>
+    </div>
+    <span class="status" id="status"><span class="dot"></span><span id="statusText">Connecting…</span></span>
+  </header>
+
+  <main class="box" id="box">
+    <canvas id="world"></canvas>
+    <div class="empty" id="empty"><p id="emptyText"></p></div>
+  </main>
+
+  <div class="dock" id="dock">
+    <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
+    <span class="count" id="count">0 memories</span>
+    <span class="build" title="Version of this page">build 2026-10-21t1</span>
+  </div>
+
+  <footer class="foot" id="foot" hidden>
+    <span class="count" id="dcount">0 memories</span>
+    <span class="build" title="Version of this page">build 2026-10-21t1</span>
+    <div class="teacher">
+      <button class="btn" id="fs" type="button">Full screen</button>
+      <button class="btn" id="fresh" type="button" hidden>Start fresh</button>
+    </div>
+  </footer>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="panel" id="panel" aria-label="More cat memories" aria-hidden="true">
+  <div class="panel-head">
+    <h2>More memories</h2>
+    <button class="close" id="closeMore" type="button" aria-label="Close">&times;</button>
+  </div>
+  <div class="panel-list" id="moreList" role="group" aria-label="More cat memories"></div>
+</aside>
+
+<script>
+(() => {
+  // Every screen rebuilds the same pile from the same ordered list of drops.
+  // A drop is a tap position plus a seed. Settling a marble uses only that seed
+  // and plain arithmetic (+ - * / sqrt), so all screens agree to the last digit.
+  const GW = 480, GH = 300;      // shared world, in world units
+  const R = 17;                  // cat ball radius
+  // The tube: six rows snaking down the board, joined by U-turns. Cats enter at the top left.
+  const TUBE_ROWS = 6, TUBE_X0 = 50, TUBE_X1 = 430, TUBE_Y0 = 28;
+  const TUBE_TILT = 6;           // each row slopes down a little in the direction of travel
+  const TUBE_BEND = 20;          // radius of the U-turns
+  const TUBE_HALF = R + 2;       // half the channel's width
+  const BURST_FRAMES = 70;       // how long popped sand takes to fade
+  const G = 0.25;                // gravity per step (one step = 1/60 s)
+  const VMAX = 9;
+  const BOUNCE = 0.3;
+  const DRAG = 0.97;             // speed kept per step while touching something
+  const MAX_STEPS = 900;          // long enough to roll the whole slide
+  const HORIZON = 300;           // ms a drop waits before it settles, so late arrivals can slot in
+  const REPEAT_MS = 350;         // holding drops a marble this often
+  const CHECKPOINT_EVERY = 10;
+  const STEP_MS = 1000 / 60;
+
+  // Cat memories. The array index is what drops store, so existing entries keep their
+  // place and new ones go on the end.
+  // Bump this whenever a cat picture changes, so browsers fetch the new one instead of a saved copy.
+  const ASSET_V = '2026-10-20d';
+
+  // Colours follow the mood meter: pleasant + calm = green, pleasant + high energy = yellow,
+  // unpleasant + calm = blue, unpleasant + high energy = red. Each ball gets its own shade.
+  const MOODS = [
+    { name: 'Curious',  hex: '#f4d35e', img: 'images/cat-curious.webp' },   // yellow
+    { name: 'Angry',    hex: '#c1121f', img: 'images/cat-angry.webp' },     // red
+    { name: 'Sad',      hex: '#1d4e89', img: 'images/cat-sad.webp' },       // blue
+    { name: 'Happy',    hex: '#ffd60a', img: 'images/cat-happy2.webp' },    // yellow
+    { name: 'Scared',   hex: '#e5383b', img: 'images/cat-scared.webp' },    // red
+    { name: 'Calm',     hex: '#40916c', img: 'images/cat-calm.webp' },      // green
+    { name: 'Confused', hex: '#4ea8de', img: 'images/cat-confused.webp' },  // blue
+    { name: 'Excited',  hex: '#ffb703', img: 'images/cat-excited.webp' },   // yellow
+    { name: 'Hungry',   hex: '#fcbf49', img: 'images/cat-hungry.webp' },    // yellow
+    { name: 'Silly',    hex: '#ffe066', img: 'images/cat-silly.webp' },     // yellow
+    { name: 'Upset',    hex: '#ff4d6d', img: 'images/cat-upset.webp' },     // red
+    { name: 'Bored',    hex: '#6c8ebf', img: 'images/cat-bored.webp' },     // blue
+    { name: 'Nervous',  hex: '#f4845f', img: 'images/cat-nervous.webp' },   // red
+    { name: 'Playful',  hex: '#fcbf49', img: 'images/cat-playful.webp' },   // yellow (retired from the panel)
+    { name: 'Chill',    hex: '#74c69d', img: 'images/cat-chill.webp' },     // green
+    { name: 'Worried',  hex: '#9d0208', img: 'images/cat-worried.webp' },   // red (retired from the panel)
+    { name: 'Focused',  hex: '#2d6a4f', img: 'images/cat-focused.webp' },   // green
+    { name: 'Tired',    hex: '#5e81ac', img: 'images/cat-tired.webp' },     // blue
+  ];
+  const PICKER = [3, 2, 4, 6, 5];          // main row: Happy, Sad, Scared, Confused, Calm
+  // Side panel: every cat (the starters too), grouped by colour family.
+  const MORE_GROUPS = [
+    { title: 'Yellow', note: 'happy and full of energy', hex: '#ffd60a', ids: [3, 7, 0, 9, 8] },
+    { title: 'Green',  note: 'happy and calm',           hex: '#40916c', ids: [5, 14, 16] },
+    { title: 'Blue',   note: 'upset and low energy',     hex: '#1d4e89', ids: [2, 6, 11, 17] },
+    { title: 'Red',    note: 'upset and full of energy', hex: '#c1121f', ids: [4, 1, 12, 10] },
+  ];
+  const MORE = MORE_GROUPS.flatMap(g => g.ids);
+
+  const $ = id => document.getElementById(id);
+  const canvas = $('world'), ctx = canvas.getContext('2d');
+  const box = $('box');
+
+  const session = Math.random().toString(36).slice(2, 10);
+  let seq = 0;
+  let mode = 'play';
+  let mood = 3;                  // Happy
+
+  function rng32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ---- deterministic world: cats in a winding tube ----
+  // One channel snakes back and forth down the board. Cats travel through it in single file
+  // and line up from the far end. The shared state is just the order of the cats, so every
+  // screen agrees. Popping a cat removes it from the line: it bursts into sand that fades,
+  // and every cat behind it rolls forward one space.
+  let balls = [];                 // front of the line first: {i (id), c, n, x, y, r}
+  // kept so the shared drawing code still works; the tube has no lasting sand
+  const CELL = 2, SW = GW / CELL, SH = GH / CELL;
+  const sand = new Uint32Array(SW * SH);
+  const sandCount = 0;
+
+  // The tube's centre line, sampled every couple of units, with the distance along it.
+  // (Math.sin/cos only shape the drawing; the shared state never depends on them.)
+  const PATH = (() => {
+    const pts = [];
+    let y = TUBE_Y0;
+    for (let row = 0; row < TUBE_ROWS; row++) {
+      const lr = row % 2 === 0, xa = lr ? TUBE_X0 : TUBE_X1, xb = lr ? TUBE_X1 : TUBE_X0, len = TUBE_X1 - TUBE_X0;
+      for (let k = row === 0 ? 0 : 1; k <= len; k += 2) pts.push([xa + (xb - xa) * k / len, y + TUBE_TILT * k / len]);
+      y += TUBE_TILT;
+      if (row < TUBE_ROWS - 1) {               // a U-turn down to the next row
+        const dir = lr ? 1 : -1, cy = y + TUBE_BEND;
+        for (let k = 1; k < 32; k++) { const a = Math.PI * k / 32; pts.push([xb + dir * TUBE_BEND * Math.sin(a), cy - TUBE_BEND * Math.cos(a)]); }
+        y += TUBE_BEND * 2;
+      }
+    }
+    const dist = [0];
+    for (let k = 1; k < pts.length; k++) dist.push(dist[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
+    return { pts, dist, len: dist[dist.length - 1] };
+  })();
+
+  function pathAt(s) {
+    const d = PATH.dist;
+    if (s <= 0) return PATH.pts[0];
+    if (s >= PATH.len) return PATH.pts[PATH.pts.length - 1];
+    let lo = 0, hi = d.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (d[m] <= s) lo = m; else hi = m; }
+    const t = (s - d[lo]) / (d[hi] - d[lo] || 1), a = PATH.pts[lo], b = PATH.pts[hi];
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  }
+  const ENTRY_X = PATH.pts[0][0], ENTRY_Y = PATH.pts[0][1];
+
+  // Each cat's place along the tube, from the far end back: cats sit side by side, a little
+  // further apart (along the tube) on the U-turns so they never squeeze into each other.
+  const SLOTS = (() => {
+    const out = [PATH.len - R - 0.5];
+    for (;;) {
+      const [px, py] = pathAt(out[out.length - 1]);
+      let s = out[out.length - 1] - (R * 2 + 1);
+      while (s > R) { const [x, y] = pathAt(s); if (Math.hypot(x - px, y - py) >= R * 2 + 1) break; s -= 0.5; }
+      if (s <= R) break;
+      out.push(s);
+    }
+    return out;
+  })();
+  // How many cats fit is fixed, so every screen agrees on when the tube is full.
+  const CAPACITY = Math.min(SLOTS.length, 70);
+  const slotAt = k => SLOTS[Math.min(k, SLOTS.length - 1)];
+
+  // Puts every cat at its place in the line.
+  function layout() {
+    balls.forEach((b, k) => { const [x, y] = pathAt(slotAt(k)); b.x = x; b.y = y; b.r = R; });
+  }
+
+  // Adds a cat at the back of the line (if the tube is full right up to the entrance, it can't get in).
+  function place(ch, tl) {
+    if (balls.length >= CAPACITY) return;
+    const ball = { i: ch.i, c: ch.c, n: 1 };
+    balls.push(ball);
+    layout();
+    if (tl) tl.roll(ball, 0, slotAt(balls.length - 1), 0);
+  }
+
+  // The cat under the tap.
+  function marbleAt(x, y) {
+    for (const b of balls) { const dx = x - b.x, dy = y - b.y, rr = R + 2; if (dx * dx + dy * dy <= rr * rr) return b; }
+    return null;
+  }
+
+  // Pops the tapped cat; everyone behind it rolls forward one space.
+  function pop(ch, tl) {
+    const target = (ch.t && balls.find(b => b.i === ch.t)) || marbleAt(ch.p[0], ch.p[1]);
+    if (!target) return;
+    const k = balls.indexOf(target);
+    if (tl) tl.pop(target);
+    balls.splice(k, 1);
+    layout();
+    if (tl) for (let j = k; j < balls.length; j++) tl.roll(balls[j], slotAt(j + 1), slotAt(j), 6 + (j - k) * 2);   // a little ripple back along the line
+  }
+
+  // ---- animation timeline for one add or pop (frames at 60 fps) ----
+  const ROLL_ACC = 0.3, ROLL_MAX = 14;          // how cats speed up along the tube (units per frame)
+  function makeTimeline() {
+    const tracks = new Map();     // id -> {c, f: [[x, y, r, alpha], ...]} indexed by frame
+    let T = 0, burst = null;
+    const tr = b => { let t = tracks.get(b.i); if (!t) { t = { c: b.c, f: [] }; tracks.set(b.i, t); } return t; };
+    function put(b, f, x, y, r, a) {
+      const t = tr(b);
+      if (t.f.length && f > t.f.length) { const last = t.f[t.f.length - 1]; for (let k = t.f.length; k < f; k++) t.f[k] = last; }
+      t.f[f] = [x, y, r, a];
+    }
+    return {
+      // a cat rolls along the tube from s0 to s1, starting after `delay` frames
+      roll(b, s0, s1, delay) {
+        const [hx, hy] = pathAt(s0);
+        if (!tracks.has(b.i)) for (let k = 0; k < delay; k++) put(b, k, hx, hy, R, 1);
+        let s = s0, v = 0, f = delay;
+        while (s < s1) { v = Math.min(v + ROLL_ACC, ROLL_MAX); s = Math.min(s1, s + v); const [x, y] = pathAt(s); put(b, f++, x, y, R, 1); }
+        T = Math.max(T, f);
+      },
+      pop(b) {                                // swells and fades as it bursts into sand
+        for (let k = 0; k <= 6; k++) put(b, k, b.x, b.y, R * (1 + 0.15 * k / 6), 1 - k / 6);
+        burst = { x: b.x, y: b.y, r: R, c: b.c, start: 2 };
+        T = Math.max(T, 8);
+      },
+      finish(alive) {
+        const end = Math.max(T, burst ? burst.start + BURST_FRAMES : 0) + 1;
+        for (const [id, t] of tracks) if (alive.has(id) && t.f.length) put({ i: id, c: t.c }, end, ...t.f[t.f.length - 1]);
+        return { tracks, end, burst };
+      },
+    };
+  }
+
+  // ---- ordered drop log ----
+  let gen = 'local';
+  let chunks = [], seen = new Set(), committed = 0, checkpoints = [];
+  let everCommitted = new Set();
+  let lastKey = 0, skew = 0, clockOffset = 0;
+  let anims = [], animsVersion = 0;   // [{t0, end, tracks, grains, sandStart}]; version bumps when the list changes
+
+  const logicalNow = () => Date.now() + clockOffset + skew;
+  function nextKey() {
+    lastKey = Math.max(Math.floor(logicalNow()), lastKey + 1);
+    return lastKey;
+  }
+  function observeKey(k) {
+    if (k > lastKey) lastKey = k;
+    const ahead = k - (Date.now() + clockOffset);
+    if (ahead > skew) skew = Math.min(60000, ahead);
+  }
+  function cmp(a, b) { return a.k - b.k || (a.i < b.i ? -1 : a.i > b.i ? 1 : 0); }
+  const copyBalls = list => list.map(b => ({ ...b }));
+
+  function addChunk(ch, remote) {
+    if (seen.has(ch.i)) return;
+    seen.add(ch.i);
+    if (remote) observeKey(ch.k);
+    let lo = 0, hi = chunks.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (cmp(chunks[m], ch) < 0) lo = m + 1; else hi = m; }
+    chunks.splice(lo, 0, ch);
+    if (lo < committed) rollback(lo);
+  }
+  function rollback(idx) {
+    while (checkpoints.length && checkpoints[checkpoints.length - 1].idx > idx) checkpoints.pop();
+    const cp = checkpoints[checkpoints.length - 1];
+    balls = cp ? copyBalls(cp.balls) : [];
+    layout();
+    worldVersion++;
+    committed = cp ? cp.idx : 0;
+    anims = [];
+  }
+  let worldVersion = 0;           // bumps whenever marbles or sand change, so the drawing can be reused until then
+  function commit(frameStart) {
+    const now = logicalNow();
+    const limit = now - HORIZON;
+    while (committed < chunks.length && chunks[committed].k <= limit) {
+      const ch = chunks[committed];
+      const replay = everCommitted.has(ch.i);  // re-doing it after a late arrival: finish now so nothing flickers
+      // new events wait for the next frame once this one has done 8 ms of work (even a big catch-up)
+      if (!replay && frameStart !== undefined && performance.now() - frameStart > 8) break;
+      const fresh = !replay && ch.k > now - 5000;
+      worldVersion++;
+      everCommitted.add(ch.i);
+      const tl = fresh ? makeTimeline() : null;
+      if (ch.l === 1) pop(ch, tl); else place(ch, tl);
+      if (tl) {
+        const anim = tl.finish(new Set(balls.map(b => b.i)));
+        anim.t0 = performance.now();
+        anims.push(anim);
+        animsVersion++;
+      }
+      committed++;
+      if (committed % CHECKPOINT_EVERY === 0) {
+        checkpoints.push({ idx: committed, balls: copyBalls(balls) });
+        if (checkpoints.length > 40) checkpoints.shift();
+      }
+    }
+  }
+  function resetLog() {
+    chunks = []; seen = new Set(); committed = 0; checkpoints = [];
+    everCommitted = new Set(); balls = []; anims = [];
+    worldVersion++;
+  }
+
+  function valid(c) {
+    if (!c || typeof c !== 'object') return null;
+    const { i, k, s, p } = c, col = c.c, r = c.r, l = c.l, t = c.t;
+    if (typeof i !== 'string' || i.length > 64) return null;
+    if (!Number.isFinite(k) || k < 0) return null;
+    if (!Number.isInteger(col) || col < 0 || col >= MOODS.length) return null;
+    if (!Number.isInteger(r) || r < 1 || r > 20) return null;
+    if (!Number.isInteger(s) || s < 0 || s > 4294967295) return null;
+    if (l !== 0 && l !== 1) return null;
+    if (!Array.isArray(p) || p.length !== 2) return null;
+    const [x, y] = p;
+    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= GW || y < 0 || y >= GH) return null;
+    const out = { i, k, c: col, r, s, l, p: [x, y] };
+    if (l === 1 && typeof t === 'string' && t.length <= 120) out.t = t;
+    return out;
+  }
+
+  // ---- dropping (multi-touch, hold to repeat) ----
+  const holds = new Map();
+  let canPour = true;
+  function dropAt(x, y) {
+    const ch = { i: session + ':' + (seq++), k: nextKey(), c: mood, r: R, s: (Math.random() * 4294967296) >>> 0, l: 0, p: [x, y] };
+    addChunk(ch, false);
+    send(ch);
+  }
+  const popping = new Map();      // marble id -> when this screen asked to pop it (drawn bursting right away)
+  function popAt(x, y, hit) {
+    if (popping.has(hit.i)) return;
+    popping.set(hit.i, performance.now());
+    const ch = { i: session + ':' + (seq++), k: nextKey(), c: hit.c, r: R, s: (Math.random() * 4294967296) >>> 0, l: 1, p: [x, y], t: hit.i };
+    addChunk(ch, false);
+    send(ch);
+  }
+  // At most one drop or pop every 350 ms per screen, so a room full of fast tappers stays smooth.
+  const ACTION_GAP = 350;
+  let lastAction = -1e9;
+  function canAct(now) {
+    if (now - lastAction < ACTION_GAP) return false;
+    lastAction = now;
+    return true;
+  }
+  // A dropped ball that is still appearing (waiting its turn) under the tap.
+  function formingAt(x, y) {
+    for (let j = committed; j < chunks.length; j++) {
+      const ch = chunks[j];
+      if (ch.l === 1) continue;
+      const dx = x - ENTRY_X, dy = y - ENTRY_Y, rr = R * 1.3 + 3;
+      if (dx * dx + dy * dy <= rr * rr) return true;
+    }
+    return false;
+  }
+  // Marbles where they are drawn right now (settled or mid-fall), for tapping.
+  let onScreen = [];
+  function marbleOnScreen(x, y) {
+    let hit = null;
+    for (const b of onScreen) {
+      const dx = x - b.x, dy = y - b.y, rr = b.r * 1.3 + 3;   // the glow around a ball counts as the ball
+      if (dx * dx + dy * dy <= rr * rr && (!hit || b.r < hit.r)) hit = b;
+    }
+    return hit;
+  }
+  function toWorld(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.round((e.clientX - rect.left) / rect.width * GW);
+    const y = Math.round((e.clientY - rect.top) / rect.height * GH);
+    return [Math.min(GW - 1, Math.max(0, x)), Math.min(GH - 1, Math.max(0, y))];
+  }
+  canvas.addEventListener('pointerdown', e => {
+    if (mode !== 'play' || !canPour) return;
+    e.preventDefault();
+    const [x, y] = toWorld(e);
+    const now = performance.now();
+    const hit = marbleOnScreen(x, y);
+    if (hit) { if (!popping.has(hit.i) && canAct(now)) popAt(x, y, hit); return; }   // tapped a marble: pop it
+    if (formingAt(x, y)) return;               // tapped a ball that's still appearing: don't add another on top
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    holds.set(e.pointerId, { x, y, last: now });
+    if (canAct(now)) dropAt(x, y);
+  });
+  canvas.addEventListener('pointermove', e => {
+    const h = holds.get(e.pointerId);
+    if (h) [h.x, h.y] = toWorld(e);
+  });
+  const release = e => holds.delete(e.pointerId);
+  canvas.addEventListener('pointerup', release);
+  canvas.addEventListener('pointercancel', release);
+  function endStrokes() { holds.clear(); }
+
+  // ---- cat memory marbles ----
+  function hexRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function mix(rgb, to, t) { return 'rgb(' + rgb.map((v, i) => Math.round(v + (to[i] - v) * t)).join(',') + ')'; }
+  // ---- drawn faces (for the Joy, Anger and Sadness marbles) ----
+  function faceSvg(kind, ink) {
+    const P = '#1d1b26';
+    const line = 'fill="none" stroke="' + ink + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"';
+    const eyes = (r, ry, dx, dy, pr) =>
+      '<ellipse cx="17" cy="17" rx="' + r + '" ry="' + ry + '" fill="#fff"/>' +
+      '<ellipse cx="31" cy="17" rx="' + r + '" ry="' + ry + '" fill="#fff"/>' +
+      '<circle cx="' + (17 + dx) + '" cy="' + (17 + dy) + '" r="' + pr + '" fill="' + P + '"/>' +
+      '<circle cx="' + (31 + dx) + '" cy="' + (17 + dy) + '" r="' + pr + '" fill="' + P + '"/>';
+    const lids = c => '<path d="M11.5 17 A5.5 5.5 0 0 1 22.5 17 Z M25.5 17 A5.5 5.5 0 0 1 36.5 17 Z" fill="' + c + '"/>';
+    const f = {
+      joy: eyes(5, 5.5, 0, 0, 2.4) +
+        '<path d="M14 25 Q24 37 34 25 Z" fill="' + ink + '"/>',
+      sadness: eyes(5, 5, 0, 1.6, 2.2) +
+        '<path d="M11 10 L20 7 M28 7 L37 10 M18 32 Q24 27 30 32" ' + line + '/>' +
+        '<path d="M13 24 q-1.6 3 0 4 q1.6 -1 0 -4 Z" fill="#fff" opacity="0.85"/>',
+      anger: eyes(5.5, 3.6, 0, 0.6, 2.2) +
+        '<path d="M10 8 L21 13 M27 13 L38 8" ' + line + '/>' +
+        '<rect x="15" y="25.5" width="18" height="6" rx="1.5" fill="#fff" stroke="' + ink + '" stroke-width="2"/>' +
+        '<path d="M15 28.5 H33 M21 25.5 V31.5 M27 25.5 V31.5" fill="none" stroke="' + ink + '" stroke-width="1.4"/>',
+      confused: eyes(5, 5.5, -1.3, -1.6, 2.3) +
+        '<path d="M10 10 Q14 3.5 20 6.5 M28 11 L37 9 M17 31 Q20.5 27.5 24 30 T31 28" ' + line + '/>',
+      fear: eyes(6.5, 6.5, 0, -0.5, 1.8) +
+        '<path d="M10 7 Q14 3 20 6 M28 6 Q34 3 38 7 M17 32 q2 -2.5 3.5 0 t3.5 0 t3.5 0 t3.5 0" ' + line + '/>',
+      disgust: eyes(5, 4, 1.4, 0.6, 2) +
+        '<path d="M11 10 H20 M28 9 Q32 4.5 37 8.5 M17 30 Q21 26.5 24.5 29.5 Q28.5 32.5 32 27.5" ' + line + '/>',
+      anxiety: eyes(6, 6.2, 0, 0, 2.3) +
+        '<path d="M10 8 q3 -3 5 -1 t5 -1 M28 6 q3 -2 5 1 t5 1" ' + line + '/>' +
+        '<rect x="12" y="24" width="24" height="10" rx="5" fill="' + ink + '"/>' +
+        '<path d="M15 24.5 h18 v3 h-18 Z" fill="#fff"/>',
+      embarrassment: eyes(5, 5, 0, 2.6, 2.2) +
+        '<circle cx="9" cy="26" r="4" fill="#fff" opacity="0.35"/><circle cx="39" cy="26" r="4" fill="#fff" opacity="0.35"/>' +
+        '<path d="M11 11 L19 9 M29 9 L37 11 M20 31 q2 -1.5 4 0 t4 0" ' + line + '/>',
+      envy: eyes(7, 7.2, 0, 0.5, 4.6) +
+        '<circle cx="15" cy="15" r="1.5" fill="#fff"/><circle cx="29" cy="15" r="1.5" fill="#fff"/>' +
+        '<circle cx="18.5" cy="19.5" r="0.8" fill="#fff"/><circle cx="32.5" cy="19.5" r="0.8" fill="#fff"/>' +
+        '<ellipse cx="24" cy="32" rx="2" ry="2.4" fill="' + ink + '"/>',
+      ennui: eyes(5.5, 4.5, 1.2, 1.2, 2) + lids('#6e70d6') +
+        '<path d="M11.5 17 H22.5 M25.5 17 H36.5 M16 30 H32" ' + line + '/>',
+    };
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 40" aria-hidden="true">' + (f[kind] || '') + '</svg>';
+  }
+
+  const catImages = MOODS.map(m => {
+    const img = new Image();
+    img.onload = () => { buildSprites(); drawPicker(); };
+    img.src = m.img ? m.img + '?v=' + ASSET_V : 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(faceSvg(m.face, m.ink));
+    return img;
+  });
+
+  // Draws one marble centred at (0, 0) with radius pr. Cat marbles: the cut-out cat inside the glass
+  // on a light wash of its family colour, a little deeper toward the rim. Drawn marbles: a glowing glass body with the face inside.
+  // Both finish with a rim light and glints.
+  function paintMarble(g, idx, pr, glow) {
+    const m = MOODS[idx], rgb = hexRgb(m.hex), img = catImages[idx];
+    if (glow) {
+      g.save();
+      g.shadowColor = 'rgba(' + rgb.join(',') + ',0.7)';
+      g.shadowBlur = glow;
+      g.fillStyle = 'rgba(' + rgb.join(',') + ',0.6)';
+      g.beginPath(); g.arc(0, 0, pr * 0.96, 0, Math.PI * 2); g.fill();
+      g.restore();
+    }
+    if (m.face) {
+      g.save();
+      g.globalAlpha = 0.9;
+      const body = g.createRadialGradient(-pr * 0.25, -pr * 0.3, pr * 0.05, 0, 0, pr);
+      body.addColorStop(0, mix(rgb, [255, 255, 255], 0.7));
+      body.addColorStop(0.45, m.hex);
+      body.addColorStop(1, mix(rgb, [0, 0, 0], 0.32));
+      g.fillStyle = body;
+      g.beginPath(); g.arc(0, 0, pr, 0, Math.PI * 2); g.fill();
+      if (img.complete && img.naturalWidth) {
+        g.globalAlpha = 0.75;
+        const w = pr * 1.45, h = w * 40 / 48;
+        g.drawImage(img, -w / 2, -h / 2 + pr * 0.06, w, h);
+      }
+      g.restore();
+    } else {
+    g.save();
+    g.beginPath(); g.arc(0, 0, pr, 0, Math.PI * 2); g.clip();
+    // light family colour behind the cut-out cat: palest in the middle, a little deeper at the rim
+    const back = g.createRadialGradient(0, -pr * 0.1, pr * 0.1, 0, 0, pr);
+    back.addColorStop(0, mix(rgb, [255, 255, 255], 0.82));
+    back.addColorStop(1, mix(rgb, [255, 255, 255], 0.55));
+    g.fillStyle = back;
+    g.fillRect(-pr, -pr, pr * 2, pr * 2);
+    if (img.complete && img.naturalWidth) {
+      if ('filter' in g) g.filter = 'blur(' + Math.max(0.25, pr * 0.012).toFixed(2) + 'px)';
+      g.globalAlpha = 1;
+      g.drawImage(img, -pr, -pr, pr * 2, pr * 2);
+      if ('filter' in g) g.filter = 'none';
+    }
+    // glass depth: clear in the middle, coloured and darker toward the edge
+    g.globalAlpha = 1;
+    const depth = g.createRadialGradient(-pr * 0.1, -pr * 0.15, pr * 0.55, 0, 0, pr);
+    depth.addColorStop(0, 'rgba(' + rgb.join(',') + ',0)');
+    depth.addColorStop(0.75, 'rgba(' + rgb.join(',') + ',0.12)');
+    depth.addColorStop(1, mix(rgb, [0, 0, 0], 0.3).replace('rgb', 'rgba').replace(')', ',0.45)'));
+    g.fillStyle = depth;
+    g.fillRect(-pr, -pr, pr * 2, pr * 2);
+    // a soft haze across the top, like light inside the glass
+    const haze = g.createLinearGradient(0, -pr, 0, pr * 0.2);
+    haze.addColorStop(0, 'rgba(255,255,255,0.1)');
+    haze.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = haze;
+    g.fillRect(-pr, -pr, pr * 2, pr * 2);
+    g.restore();
+    }
+    // rim light and glints
+    g.strokeStyle = 'rgba(255,255,255,0.28)';
+    g.lineWidth = Math.max(1, pr * 0.06);
+    g.beginPath(); g.arc(0, 0, pr * 0.96, 0, Math.PI * 2); g.stroke();
+    g.save();
+    g.rotate(-0.55);
+    const glint = g.createRadialGradient(-pr * 0.05, -pr * 0.66, 0, -pr * 0.05, -pr * 0.66, pr * 0.34);
+    glint.addColorStop(0, 'rgba(255,255,255,0.55)');
+    glint.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = glint;
+    g.beginPath(); g.ellipse(-pr * 0.05, -pr * 0.66, pr * 0.34, pr * 0.16, 0, 0, Math.PI * 2); g.fill();
+    g.restore();
+    g.fillStyle = 'rgba(255,255,255,0.22)';
+    g.beginPath(); g.arc(pr * 0.45, pr * 0.5, pr * 0.09, 0, Math.PI * 2); g.fill();
+  }
+
+  // ---- picker: five main marbles, plus a More button that opens a side panel ----
+  const moodButtons = [];
+  function makeMoodButton(i, parent, key) {
+    const m = MOODS[i];
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mood';
+    btn.id = 'mood-' + m.name.toLowerCase() + (key ? '' : '-more');
+    btn.style.setProperty('--c', m.hex);
+    btn.title = m.name + (key ? ' (' + key + ')' : '');
+    btn.dataset.mood = i;
+    btn.setAttribute('aria-pressed', i === mood ? 'true' : 'false');
+    btn.setAttribute('aria-label', m.name);
+    btn.innerHTML = '<canvas class="orb" width="128" height="128"></canvas><span class="label">' + m.name + '</span>';
+    btn.addEventListener('click', () => { selectMood(i); closeMore(); });
+    parent.appendChild(btn);
+    moodButtons.push(btn);
+  }
+  PICKER.forEach((i, pos) => makeMoodButton(i, $('moods'), pos + 1));
+  const moreBtn = document.createElement('button');
+  moreBtn.type = 'button';
+  moreBtn.className = 'mood more';
+  moreBtn.id = 'more';
+  moreBtn.title = 'More cat memories';
+  moreBtn.setAttribute('aria-expanded', 'false');
+  moreBtn.setAttribute('aria-controls', 'panel');
+  moreBtn.innerHTML = '<span class="ring"><canvas class="orb" width="128" height="128" hidden></canvas><span class="plus" aria-hidden="true">+</span></span><span class="label">More</span>';
+  moreBtn.addEventListener('click', openMore);
+  $('moods').appendChild(moreBtn);
+  MORE_GROUPS.forEach(g => {
+    const h = document.createElement('p');
+    h.className = 'group';
+    h.style.setProperty('--c', g.hex);
+    h.innerHTML = '<span class="swatch"></span><b>' + g.title + '</b> ' + g.note;
+    $('moreList').appendChild(h);
+    g.ids.forEach(i => makeMoodButton(i, $('moreList'), 0));
+  });
+
+  function drawMarbleOn(c, i) {
+    const g = c.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, c.width, c.height);
+    g.translate(c.width / 2, c.height / 2);
+    paintMarble(g, i, c.width / 2, 0);
+  }
+  function drawPicker() {
+    moodButtons.forEach(btn => drawMarbleOn(btn.querySelector('canvas'), Number(btn.dataset.mood)));
+    renderMore();
+  }
+  // The More button shows the chosen side-panel marble, so kids can see what they picked.
+  function renderMore() {
+    const extra = !PICKER.includes(mood);     // chosen from the panel and not in the main row
+    const c = moreBtn.querySelector('canvas');
+    c.hidden = !extra;
+    moreBtn.querySelector('.plus').hidden = extra;
+    moreBtn.setAttribute('aria-pressed', extra ? 'true' : 'false');
+    moreBtn.style.setProperty('--c', extra ? MOODS[mood].hex : 'transparent');
+    moreBtn.querySelector('.label').textContent = extra ? MOODS[mood].name : 'More';
+    if (extra) drawMarbleOn(c, mood);
+  }
+  function selectMood(i) {
+    mood = i;
+    moodButtons.forEach(b => b.setAttribute('aria-pressed', Number(b.dataset.mood) === i ? 'true' : 'false'));
+    renderMore();
+  }
+
+  function openMore() {
+    $('panel').classList.add('open');
+    $('panel').setAttribute('aria-hidden', 'false');
+    $('scrim').hidden = false;
+    moreBtn.setAttribute('aria-expanded', 'true');
+    const current = $('moreList').querySelector('[aria-pressed="true"]') || $('moreList').querySelector('.mood');
+    if (current) current.focus({ preventScroll: true });
+  }
+  function closeMore() {
+    if (!$('panel').classList.contains('open')) return;
+    $('panel').classList.remove('open');
+    $('panel').setAttribute('aria-hidden', 'true');
+    $('scrim').hidden = true;
+    moreBtn.setAttribute('aria-expanded', 'false');
+  }
+  $('closeMore').addEventListener('click', closeMore);
+  $('scrim').addEventListener('click', closeMore);
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeMore(); return; }
+    if (mode !== 'play') return;
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= PICKER.length) selectMood(PICKER[n - 1]);
+    if (n === PICKER.length + 1) openMore();
+  });
+
+  // ---- falling marble sprites (one per feeling, redrawn on resize) ----
+  const SPRITE_R = R * 1.6;                // sprites are drawn this big and scaled down per marble
+  let sprites = [], scale = 1, spriteHalf = 0;
+  function buildSprites() {
+    layerKey = '';
+    const pr = SPRITE_R * scale;             // sprite marble radius in canvas pixels
+    const glow = pr * 0.4;
+    const size = Math.ceil((pr + glow) * 2);
+    spriteHalf = size / 2;
+    sprites = MOODS.map((m, idx) => {
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const g = c.getContext('2d');
+      g.translate(size / 2, size / 2);
+      paintMarble(g, idx, pr, glow);
+      return c;
+    });
+  }
+  drawPicker();
+
+  // ---- sharing (Firebase Realtime Database, no sign-in) ----
+  // Slide drops live beside the others at pours/s<gen>, so Start fresh clears them all.
+  const cfg = window.SANDFALL_CONFIG || {};
+  const fbConfig = cfg.firebase || {};
+  const configured = !!(window.firebase && fbConfig.databaseURL && !/your-project/i.test(fbConfig.databaseURL));
+  let fdb = null;
+  let canWrite = true, connected = false;
+  let poursQuery = null, screens = [];
+  let stateGen = 'g0';
+
+  function send(ch) {
+    if (!fdb || !canWrite || gen === 'local' || gen === 'solo') return;
+    fdb.ref('pours/' + gen + '/' + ch.i)
+      .set(Object.assign({ i: ch.i, k: ch.k, c: ch.c, r: ch.r, s: ch.s, l: ch.l, p: ch.p.join(',') }, ch.t ? { t: ch.t } : {}))
+      .catch(e => {
+        if (/permission/i.test((e && (e.code || e.message)) || '')) {
+          canWrite = false;
+          canPour = false;
+          endStrokes();
+          showNotice("This screen can't add memories right now. Check the database rules in the setup guide.");
+        }
+      });
+  }
+
+  function setGen(g) {
+    endStrokes();
+    gen = g;
+    resetLog();
+    if (poursQuery) poursQuery.off();
+    const myGen = g;
+    poursQuery = fdb.ref('pours/' + g).orderByChild('k');
+    poursQuery.on('child_added', snap => {
+      if (myGen !== gen) return;
+      const raw = snap.val();
+      if (!raw || typeof raw.p !== 'string') return;
+      raw.p = raw.p.split(',').map(Number);
+      const ch = valid(raw);
+      if (ch) addChunk(ch, true);
+    }, () => showNotice('Could not read the shared memories. Check the database rules in the setup guide.'));
+  }
+
+  function showNotice(text) {
+    const n = $('notice');
+    n.textContent = text;
+    n.hidden = !text;
+  }
+
+  function renderStatus() {
+    const el = $('status'), txt = $('statusText');
+    el.classList.toggle('live', !!fdb && connected);
+    if (!fdb) { txt.textContent = gen === 'local' ? 'Connecting…' : 'This screen only'; return; }
+    if (!connected) { txt.textContent = 'Connecting…'; return; }
+    const mine = screens.filter(s => s && (s.mode === 'splay' || s.mode === 'sdisplay'));
+    const tablets = mine.filter(s => s.mode === 'splay').length;
+    if (mode === 'display') txt.textContent = 'Live · ' + tablets + (tablets === 1 ? ' tablet' : ' tablets');
+    else txt.textContent = 'Live · ' + mine.length + (mine.length === 1 ? ' screen' : ' screens');
+  }
+
+  const presenceMode = () => (mode === 'display' ? 'sdisplay' : 'splay');
+
+  function connect() {
+    if (!configured) {
+      gen = 'solo';
+      showNotice('Sharing is off: add your Firebase settings to config.js to link screens together.');
+      renderStatus();
+      return;
+    }
+    try {
+      firebase.initializeApp(fbConfig);
+      fdb = firebase.database();
+    } catch (e) {
+      fdb = null; gen = 'solo';
+      showNotice('Firebase settings in config.js could not be read. Copy them again from the Firebase console.');
+      renderStatus();
+      return;
+    }
+    fdb.ref('.info/serverTimeOffset').on('value', s => { clockOffset = Number(s.val()) || 0; });
+    fdb.ref('.info/connected').on('value', s => {
+      connected = !!s.val();
+      if (connected) {
+        const me = fdb.ref('screens/' + session);
+        me.onDisconnect().remove();
+        me.set({ mode: presenceMode() }).catch(() => {});
+      }
+      renderStatus();
+    });
+    fdb.ref('screens').on('value', s => {
+      const v = s.val();
+      screens = v && typeof v === 'object' ? Object.values(v) : [];
+      renderStatus();
+    }, () => {});
+    fdb.ref('state/gen').on('value', s => {
+      const v = s.val();
+      stateGen = typeof v === 'string' && /^[a-z0-9]{1,24}$/i.test(v) ? v : 'g0';
+      const g = 's' + stateGen;
+      if (g !== gen) setGen(g);
+    }, () => showNotice('Could not connect to the shared memories. Check the database rules in the setup guide.'));
+  }
+
+  // ---- teacher controls (display) ----
+  let armTimer = 0;
+  $('fresh').addEventListener('click', async () => {
+    const btn = $('fresh');
+    if (!btn.classList.contains('armed')) {
+      btn.classList.add('armed');
+      btn.textContent = 'Tap again to clear everything';
+      clearTimeout(armTimer);
+      armTimer = setTimeout(() => { btn.classList.remove('armed'); btn.textContent = 'Start fresh'; }, 4000);
+      return;
+    }
+    clearTimeout(armTimer);
+    btn.classList.remove('armed');
+    btn.textContent = 'Start fresh';
+    if (!fdb) { resetLog(); return; }
+    if (!teacherCode) {
+      showNotice('Add your teacher code to the address: …/memories.html#teacher-YOURCODE');
+      return;
+    }
+    const oldSand = stateGen, g = 'g' + Date.now().toString(36);
+    try {
+      await fdb.ref('state').set({ gen: g, key: teacherCode });
+      showNotice('');
+      fdb.ref('pours/s' + oldSand).remove().catch(() => {});
+      fdb.ref('pours/c' + oldSand).remove().catch(() => {});
+      fdb.ref('pours/m' + oldSand).remove().catch(() => {});
+      fdb.ref('pours/' + oldSand).remove().catch(() => {});
+    } catch (_) {
+      showNotice("Could not start fresh. Check that the code in this address matches the one in your database rules.");
+    }
+  });
+  $('fs').addEventListener('click', () => {
+    const el = document.documentElement;
+    if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); return; }
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => { $('fs').hidden = true; });
+    else $('fs').hidden = true;
+  });
+
+  // ---- modes ----
+  // #play (or no hash): marbles + dropping
+  // #display: the memories only
+  // #teacher-CODE: the display plus Start fresh
+  let teacherCode = '';
+  function applyMode() {
+    let h = '';
+    try { h = decodeURIComponent(location.hash.slice(1)); } catch (_) {}
+    const t = /^teacher(?:-([A-Za-z0-9_-]{1,64}))?$/.exec(h);
+    teacherCode = t && t[1] ? t[1] : '';
+    mode = t || h === 'display' ? 'display' : 'play';
+    document.body.dataset.mode = mode;
+    $('dock').hidden = mode !== 'play';
+    $('foot').hidden = mode !== 'display';
+    $('fresh').hidden = !t;
+    if (mode === 'display') {
+      endStrokes();
+      closeMore();
+      $('hint').innerHTML = t ? 'Classroom display · teacher' : 'Classroom display';
+      $('emptyText').textContent = 'Waiting for cats. Open the play link on a tablet and send one into the tube.';
+    } else {
+      canPour = canWrite;
+      $('hint').innerHTML = 'Pick a cat, then tap to send it into the tube. Tap a cat in the tube to pop it.<span class="hint-wide"> Tap More for extra cats.</span>';
+      $('emptyText').textContent = 'Pick a feeling below, then tap anywhere to send it into the tube.';
+    }
+    if (fdb && connected) fdb.ref('screens/' + session).set({ mode: presenceMode() }).catch(() => {});
+    renderStatus();
+  }
+  window.addEventListener('hashchange', applyMode);
+
+  // ---- layout + render ----
+  function fit() {
+    const r = box.getBoundingClientRect();
+    const s = Math.max(0.1, Math.min(r.width / GW, r.height / GH));
+    const cssW = Math.floor(GW * s), cssH = Math.floor(GH * s);
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(cssW * dpr));
+    canvas.height = Math.max(1, Math.round(cssH * dpr));
+    scale = canvas.width / GW;
+    buildSprites();
+    layerKey = '';
+  }
+  new ResizeObserver(fit).observe(box);
+
+  // Sand is drawn from the grid, one pixel per grain, then scaled up without smoothing.
+  const sandCanvas = document.createElement('canvas');
+  sandCanvas.width = SW; sandCanvas.height = SH;
+  const sctx = sandCanvas.getContext('2d');
+  const sImg = sctx.createImageData(SW, SH);
+  const sBuf = new Uint32Array(sImg.data.buffer);
+  let sandDrawnFor = -1;
+  // A popped marble's sand: grains scatter from where it was, fall and fade (looks only).
+  function drawBursts(now, list) {
+    sBuf.fill(0);
+    for (const a of list) {
+      const bu = a.burst, f = Math.floor((now - a.t0) / STEP_MS) - bu.start;
+      if (f < 0) continue;
+      const rgb = hexRgb(MOODS[bu.c].hex);
+      const rand = rng32((bu.x * 131 + bu.y * 977 + bu.r) >>> 0);
+      const n = Math.round(0.5 * 3.14159 * bu.r * bu.r / (CELL * CELL));
+      for (let k = 0; k < n; k++) {
+        const ox = (rand() * 2 - 1) * bu.r, oy = (rand() * 2 - 1) * bu.r, vx = ox * 0.035 + (rand() - 0.5) * 0.5, vy = oy * 0.035 - rand() * 0.9;
+        const life = 35 + rand() * 35, shade = 0.82 + rand() * 0.26;
+        if (ox * ox + oy * oy > bu.r * bu.r || f >= life) continue;
+        const x = bu.x + ox + vx * f, y = bu.y + oy + vy * f + 0.06 * f * f;
+        const gx = Math.floor(x / CELL), gy = Math.floor(y / CELL);
+        if (gx < 0 || gx >= SW || gy < 0 || gy >= SH) continue;
+        const alpha = Math.round(255 * (1 - f / life));
+        const r = Math.min(255, rgb[0] * shade) | 0, g = Math.min(255, rgb[1] * shade) | 0, bl = Math.min(255, rgb[2] * shade) | 0;
+        sBuf[gy * SW + gx] = ((alpha << 24) | (bl << 16) | (g << 8) | r) >>> 0;
+      }
+    }
+    sctx.putImageData(sImg, 0, 0);
+  }
+
+  // The board with its winding groove (drawn once into the cached layer).
+  function drawTube(g) {
+    g.globalAlpha = 1;
+    g.fillStyle = '#b6a4e6';
+    g.fillRect(0, 0, layer.width, layer.height);
+    const path = new Path2D();
+    PATH.pts.forEach(([x, y], k) => (k ? path.lineTo(x * scale, y * scale) : path.moveTo(x * scale, y * scale)));
+    g.lineJoin = 'round'; g.lineCap = 'round';
+    g.strokeStyle = '#9580d4'; g.lineWidth = (TUBE_HALF * 2 + 5) * scale; g.stroke(path);   // the groove's edge
+    g.strokeStyle = '#6d56b3'; g.lineWidth = TUBE_HALF * 2 * scale; g.stroke(path);         // the groove
+    g.strokeStyle = 'rgba(40, 20, 90, 0.18)'; g.lineWidth = (TUBE_HALF * 2 - 8) * scale; g.stroke(path);   // depth
+    // the entrance
+    g.fillStyle = '#4e3a8f';
+    g.beginPath(); g.arc(ENTRY_X * scale, ENTRY_Y * scale, (R + 1) * scale, 0, Math.PI * 2); g.fill();
+  }
+
+  function updateSand(now, flying) {
+    if (!flying && sandDrawnFor === worldVersion) return;
+    sandDrawnFor = flying ? -1 : worldVersion;
+    sBuf.set(sand);
+    for (const a of flying) {
+      const f = Math.floor((now - a.t0) / STEP_MS) - a.sandStart;
+      const g = a.grains, land = g.land;
+      for (let k = 0, j = 0; k < g.length; k += 5, j++) {
+        if (f >= land[j]) continue;                 // landed: the grid already shows it
+        sBuf[g[k + 3] * SW + g[k + 2]] = 0;         // not there yet
+        if (f < 0) continue;
+        const p = f / land[j];
+        const cx = Math.round(g[k] + (g[k + 2] - g[k]) * Math.min(1, p * 1.6));
+        const cy = Math.round(g[k + 1] + (g[k + 3] - g[k + 1]) * p * p);
+        if (cx >= 0 && cx < SW && cy >= 0 && cy < SH) sBuf[cy * SW + cx] = g[k + 4];
+      }
+    }
+    sctx.putImageData(sImg, 0, 0);
+  }
+
+  // Settled marbles are drawn once into a layer and reused until something changes.
+  const layer = document.createElement('canvas');
+  const lctx = layer.getContext('2d');
+  let layerKey = '';
+
+  function drawMarbleTo(g, c, x, y, r, alpha) {
+    const spr = sprites[c];
+    if (!spr) return;
+    const h = spriteHalf * (r / SPRITE_R);
+    g.globalAlpha = alpha;
+    g.drawImage(spr, x * scale - h, y * scale - h, h * 2, h * 2);
+  }
+  const drawMarble = (c, x, y, r, alpha) => drawMarbleTo(ctx, c, x, y, r, alpha);
+
+  let lastCount = -1, lastEmpty = null;
+  function render(now) {
+    const before = anims.length;
+    anims = anims.filter(a => Math.floor((now - a.t0) / STEP_MS) < a.end);
+    if (anims.length !== before) animsVersion++;
+    // marbles that are moving, merging, falling or bursting are drawn every frame; the rest come from the layer
+    const busy = new Set();
+    for (const a of anims) for (const id of a.tracks.keys()) busy.add(id);
+    for (const [id, t] of popping) { if (balls.some(b => b.i === id)) busy.add(id); else if (now - t > 4000) popping.delete(id); }
+    const key = worldVersion + ':' + animsVersion + ':' + popping.size + ':' + canvas.width;
+    if (key !== layerKey) {
+      layerKey = key;
+      if (layer.width !== canvas.width || layer.height !== canvas.height) { layer.width = canvas.width; layer.height = canvas.height; }
+      lctx.setTransform(1, 0, 0, 1, 0, 0);
+      lctx.clearRect(0, 0, layer.width, layer.height);
+      drawTube(lctx);
+      const still = balls.filter(b => !busy.has(b.i)).sort((p, q) => q.r - p.r);   // big ones first
+      for (const b of still) drawMarbleTo(lctx, b.c, b.x, b.y, b.r, 1);
+      lctx.globalAlpha = 1;
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.globalAlpha = 1;
+    ctx.drawImage(layer, 0, 0);
+    const visible = balls.filter(b => !busy.has(b.i));
+    const drawn = new Set();                   // a marble in several animations is drawn once, from the newest
+    for (let ai = anims.length - 1; ai >= 0; ai--) {
+      const a = anims[ai];
+      const f = Math.floor((now - a.t0) / STEP_MS);
+      for (const [id, t] of a.tracks) {
+        if (drawn.has(id)) continue;
+        if (f >= t.f.length) continue;
+        const fr = t.f[f];
+        if (!fr) continue;
+        drawn.add(id);
+        if (popping.has(id) && balls.some(b => b.i === id)) continue;   // drawn bursting below
+        drawMarble(t.c, fr[0], fr[1], fr[2], fr[3]);
+        if (fr[3] > 0.6) visible.push({ i: id, c: t.c, x: fr[0], y: fr[1], r: fr[2] });
+      }
+    }
+    // marbles this screen just tapped: start bursting right away, before the pop is shared
+    for (const [id, t0] of popping) {
+      const b = balls.find(o => o.i === id);
+      if (!b) continue;
+      const k = Math.min(1, (now - t0) / 350);
+      drawMarble(b.c, b.x, b.y, b.r * (1 + 0.2 * k), 1 - 0.75 * k);
+    }
+    onScreen = visible.filter(b => !popping.has(b.i));
+    // sand from popped marbles, scattering and fading over everything
+    const bursting = anims.filter(a => a.burst && Math.floor((now - a.t0) / STEP_MS) - a.burst.start < BURST_FRAMES);
+    if (bursting.length) {
+      drawBursts(now, bursting);
+      ctx.imageSmoothingEnabled = false;
+      ctx.globalAlpha = 1;
+      ctx.drawImage(sandCanvas, 0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = true;
+    }
+    // memories forming at the top of the slide, before they roll
+    const ln = logicalNow();
+    for (let j = committed; j < chunks.length; j++) {
+      const ch = chunks[j];
+      if (ch.l === 1) continue;                   // a pop waiting its turn
+      const t = Math.max(0, Math.min(1, (ln - ch.k) / HORIZON));
+      drawMarble(ch.c, ENTRY_X, ENTRY_Y, R * (0.35 + 0.65 * t), 0.25 + 0.6 * t);
+    }
+    ctx.globalAlpha = 1;
+    let count = 0;
+    for (const b of balls) count += b.n;
+    if (count !== lastCount) {
+      lastCount = count;
+      const t = count.toLocaleString() + (count === 1 ? ' memory' : ' memories');
+      $('count').textContent = t;
+      $('dcount').textContent = t;
+    }
+    const empty = balls.length === 0 && anims.length === 0 && committed === chunks.length;
+    if (empty !== lastEmpty) { lastEmpty = empty; $('empty').hidden = !empty; }
+  }
+
+  function tick() {
+    const now = performance.now();
+    for (const h of holds.values()) {
+      if (now - h.last >= REPEAT_MS && canAct(now)) { h.last = now; dropAt(h.x, h.y); }
+    }
+    commit(now);
+    render(now);
+    requestAnimationFrame(tick);
+  }
+
+  applyMode();
+  fit();
+  requestAnimationFrame(tick);
+  connect();
+})();
+</script>
+
+</body>
+</html>

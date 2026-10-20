@@ -779,6 +779,7 @@
       fdb.ref('pours/' + old).remove().catch(() => {});
       fdb.ref('pours/m' + old).remove().catch(() => {});   // memories experiment shares Start fresh
       fdb.ref('pours/c' + old).remove().catch(() => {});   // cat memories experiment
+      fdb.ref('pours/s' + old).remove().catch(() => {});   // cat emotions tube
     } catch (_) {
       showNotice("Could not start fresh. Check that the code in this address matches the one in your database rules.");
     }
