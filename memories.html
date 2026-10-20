@@ -403,6 +403,9 @@
 
   // Cat memories. The array index is what drops store, so existing entries keep their
   // place and new ones go on the end.
+  // Bump this whenever a cat picture changes, so browsers fetch the new one instead of a saved copy.
+  const ASSET_V = '2026-10-20b';
+
   // Colours follow the mood meter: pleasant + calm = green, pleasant + high energy = yellow,
   // unpleasant + calm = blue, unpleasant + high energy = red. Each ball gets its own shade.
   const MOODS = [
@@ -800,7 +803,7 @@
   const catImages = MOODS.map(m => {
     const img = new Image();
     img.onload = () => { buildSprites(); drawPicker(); };
-    img.src = m.img || 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(faceSvg(m.face, m.ink));
+    img.src = m.img ? m.img + '?v=' + ASSET_V : 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(faceSvg(m.face, m.ink));
     return img;
   });
 
