@@ -294,6 +294,7 @@
   .panel-list .group b { color: var(--ink); font-weight: 700; }
   .panel-list .swatch { width: 12px; height: 12px; border-radius: 50%; background: var(--c); flex: none; }
 
+  .build { font-size: 0.62rem; color: var(--muted); opacity: 0.7; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .count {
     font-size: 0.75rem;
     color: var(--muted);
@@ -364,10 +365,12 @@
   <div class="dock" id="dock">
     <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
     <span class="count" id="count">0 memories</span>
+    <span class="build" title="Version of this page">build 2026-10-21a</span>
   </div>
 
   <footer class="foot" id="foot" hidden>
     <span class="count" id="dcount">0 memories</span>
+    <span class="build" title="Version of this page">build 2026-10-21a</span>
     <div class="teacher">
       <button class="btn" id="fs" type="button">Full screen</button>
       <button class="btn" id="fresh" type="button" hidden>Start fresh</button>
@@ -394,9 +397,9 @@
   const G = 0.25;                // gravity per step (one step = 1/60 s)
   const VMAX = 9;
   const BOUNCE = 0.3;
-  const DRAG = 0.985;            // speed kept per step while touching something
-  const MAX_STEPS = 600;
-  const HORIZON = 400;           // ms a drop waits before it settles, so late arrivals can slot in
+  const DRAG = 0.97;             // speed kept per step while touching something
+  const MAX_STEPS = 300;
+  const HORIZON = 300;           // ms a drop waits before it settles, so late arrivals can slot in
   const REPEAT_MS = 350;         // holding drops a marble this often
   const CHECKPOINT_EVERY = 10;
   const STEP_MS = 1000 / 60;
@@ -457,9 +460,8 @@
   }
 
   // ---- deterministic world: marbles and sand ----
-  // A new marble falls, bounces and rolls until it rests. If it rests touching a marble of the
-  // same kind, and a marble with both of their areas fits there, the two become one bigger
-  // marble. Tapping a marble pops it into sand (about half its area) that scatters a little and
+  // A new marble falls, bounces and rolls, knocking other marbles it hits hard enough. When it
+  // rests touching a marble of the same kind, the two become one bigger marble. Tapping a marble pops it into sand (about half its area) that scatters a little and
   // pours into whatever space it can reach. Marbles left hanging drop into gaps, and sand left
   // hanging pours down, which can set off more merges. Only seeded random numbers, + - * / and
   // Math.sqrt are used, so every screen gets exactly the same world.
@@ -548,71 +550,258 @@
     return sandOverlaps(x, y, r);
   }
 
-  // Moves `ball` from (x, y) until it rests, then adds it to `balls` if it is inside the box.
-  function roll(ball, x, y, vx, path) {
-    const r = ball.r;
-    let vy = 0, calm = 0, still = 0;
-    for (let step = 0; step < MAX_STEPS; step++) {
-      vy = Math.min(vy + G, VMAX);
-      x += vx; y += vy;
-      let touching = false, floor = false, wall = false, contacts = 0, lastNx = 0, onSand = false;
-      if (x < r) { x = r; if (vx < 0) vx = -vx * BOUNCE; touching = wall = true; }
-      else if (x > GW - r) { x = GW - r; if (vx > 0) vx = -vx * BOUNCE; touching = wall = true; }
-      if (y > GH - r) { y = GH - r; if (vy > 0) vy = -vy * BOUNCE; touching = floor = true; }
-      for (const b of balls) {
-        const D = r + b.r;
-        let dx = x - b.x, dy = y - b.y;
-        let d2 = dx * dx + dy * dy;
-        if (d2 >= D * D) continue;
-        if (d2 < 1e-9) { dx = 0.01; dy = -1; d2 = 1.0001; }
-        const d = Math.sqrt(d2);
-        const nx = dx / d, ny = dy / d;
-        x = b.x + nx * D; y = b.y + ny * D;
-        const vn = vx * nx + vy * ny;
-        if (vn < 0) { vx -= (1 + BOUNCE) * vn * nx; vy -= (1 + BOUNCE) * vn * ny; }
-        touching = true;
-        contacts++;
-        lastNx = nx;
+  // ---- moving marbles ----
+  // Settled marbles sleep. Moving marbles fall, bounce and roll, and a moving marble that hits a
+  // sleeping one hard enough wakes it, so marbles knock each other around (heavier ones push
+  // harder). Each event is simulated in fixed steps until everything sleeps again.
+  const WAKE_V = 1.2;             // how hard a hit has to be to set a sleeping marble moving (resting weight doesn't count)
+
+  function wake(b) { b.aw = true; b.vx = 0; b.vy = 0; b.calm = 0; b.still = 0; }
+  // Would pushing marble m along (px, py) shove it into the floor or a wall? Then it can't give way.
+  const pinned = (m, px, py) => (py > 0.3 && m.y >= GH - m.r - 0.01) || (px < -0.3 && m.x <= m.r + 0.01) || (px > 0.3 && m.x >= GW - m.r - 0.01);
+  // How much of an overlap each of two moving marbles takes: by weight, unless one is pinned.
+  function shares(a, b, nx, ny) {
+    const ma = a.r * a.r, mb = b.r * b.r;
+    const aStuck = pinned(a, nx, ny), bStuck = pinned(b, -nx, -ny);
+    if (aStuck && !bStuck) return [0, 1];
+    if (bStuck && !aStuck) return [1, 0];
+    return [mb / (ma + mb), ma / (ma + mb)];
+  }
+
+  // Highest grain in each sand column, so a marble only checks sand where it can reach it.
+  const sandTop = new Int16Array(SW);
+  function refreshSandTop() {
+    for (let gx = 0; gx < SW; gx++) {
+      let gy = 0;
+      while (gy < SH && !sand[gy * SW + gx]) gy++;
+      sandTop[gx] = gy;
+    }
+  }
+
+  // Runs the world until every moving marble is asleep. `movers` are already in `balls`.
+  // Returns the marbles that moved, each with its starting spot in sx, sy.
+  function simulate(movers, tl) {
+    if (sandCount) refreshSandTop();
+    const moved = new Set();
+    let awake = 0;
+    for (const b of movers) {
+      if (b.vx === undefined) b.vx = 0;
+      if (b.vy === undefined) b.vy = 0;
+      b.aw = true; b.calm = 0; b.still = 0; b.woke = -1; b.sx = b.x; b.sy = b.y;
+      moved.add(b); awake++;
+    }
+    const T0 = tl ? tl.now() : 0;
+    let step = 0;
+    for (; step < MAX_STEPS && awake > 0; step++) {
+      for (const b of balls) if (b.aw) {
+        b.vy = Math.min(b.vy + G, VMAX);
+        b.x += b.vx; b.y += b.vy;
+        b.touch = false; b.floor = false; b.wall = false; b.contacts = 0; b.lastNx = 0; b.onSand = false; b.below = 0;
       }
-      if (sandCount) {                        // grains act like tiny fixed pebbles
-        const D = r + SAND_R;
-        const gx0 = Math.max(0, Math.floor((x - D) / CELL)), gx1 = Math.min(SW - 1, Math.floor((x + D) / CELL));
-        const gy0 = Math.max(0, Math.floor((y - D) / CELL)), gy1 = Math.min(SH - 1, Math.floor((y + D) / CELL));
-        for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
-          if (!sand[gy * SW + gx]) continue;
-          const cx = (gx + 0.5) * CELL, cy = (gy + 0.5) * CELL;
-          let dx = x - cx, dy = y - cy;
-          let d2 = dx * dx + dy * dy;
-          if (d2 >= D * D) continue;
-          if (d2 < 1e-9) { dx = 0; dy = -1; d2 = 1; }
-          const d = Math.sqrt(d2);
-          const nx = dx / d, ny = dy / d;
-          x = cx + nx * D; y = cy + ny * D;
-          const vn = vx * nx + vy * ny;
-          if (vn < 0) { vx -= (1 + BOUNCE) * vn * nx; vy -= (1 + BOUNCE) * vn * ny; }
-          touching = onSand = true;
-          contacts++;
-          lastNx = nx;
+      // two passes per step so a marble pushed out of one neighbour doesn't stay inside another (bounce only on the first)
+      for (let pass = 0; pass < 2; pass++) {
+        const first = pass === 0;
+        for (let ai = 0; ai < balls.length; ai++) {
+          const a = balls[ai];
+          if (!a.aw) continue;
+          const r = a.r;
+          if (a.x < r) { a.x = r; if (first && a.vx < 0) a.vx = -a.vx * BOUNCE; a.touch = a.wall = true; }
+          else if (a.x > GW - r) { a.x = GW - r; if (first && a.vx > 0) a.vx = -a.vx * BOUNCE; a.touch = a.wall = true; }
+          if (a.y > GH - r) { a.y = GH - r; if (first && a.vy > 0) a.vy = -a.vy * BOUNCE; a.touch = a.floor = true; }
+          for (let bi = 0; bi < balls.length; bi++) {
+            if (bi === ai) continue;
+            const b = balls[bi];
+            if (b.aw && bi < ai && b.woke !== step) continue;   // that pair was handled from b's side
+            const D = r + b.r;
+            let dx = a.x - b.x, dy = a.y - b.y;
+            if (dx > D || dx < -D || dy > D || dy < -D) continue;
+            let d2 = dx * dx + dy * dy;
+            if (d2 >= D * D) continue;
+            if (d2 < 1e-9) { dx = 0.01; dy = -1; d2 = 1.0001; }
+            const d = Math.sqrt(d2);
+            const nx = dx / d, ny = dy / d, pen = D - d;
+            const ma = r * r, mb = b.r * b.r;
+            if (first && !b.aw) {
+              const impact = -(a.vx * nx + a.vy * ny) * Math.min(2, ma / mb);   // a heavier marble hits harder
+              if (impact > WAKE_V) {
+                if (tl) tl.holdUntil(b, b.x, b.y, T0 + step);
+                if (!moved.has(b)) { b.sx = b.x; b.sy = b.y; }
+                wake(b); b.woke = step;
+                b.touch = false; b.floor = false; b.wall = false; b.contacts = 0; b.lastNx = 0; b.onSand = false; b.below = 0;
+                moved.add(b); awake++;
+              }
+            }
+            if (b.aw) {                          // both moving: share the push and the bounce by weight
+              const [sa, sb] = shares(a, b, nx, ny);
+              a.x += nx * pen * sa; a.y += ny * pen * sa;
+              b.x -= nx * pen * sb; b.y -= ny * pen * sb;
+              const vn = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+              if (first && vn < 0) {
+                const j = -(1 + BOUNCE) * vn / (1 / ma + 1 / mb);
+                a.vx += j / ma * nx; a.vy += j / ma * ny;
+                b.vx -= j / mb * nx; b.vy -= j / mb * ny;
+              }
+              if (first) { b.touch = true; b.contacts++; b.lastNx = -nx; if (ny > 0) b.below++; }
+            } else {                             // sleeping marble stays put
+              a.x = b.x + nx * D; a.y = b.y + ny * D;
+              const vn = a.vx * nx + a.vy * ny;
+              if (first && vn < 0) { a.vx -= (1 + BOUNCE) * vn * nx; a.vy -= (1 + BOUNCE) * vn * ny; }
+            }
+            if (first) { a.touch = true; a.contacts++; a.lastNx = nx; if (ny < 0) a.below++; }
+          }
+          if (sandCount) {                       // grains act like tiny fixed pebbles
+            const D = r + SAND_R;
+            const gx0 = Math.max(0, Math.floor((a.x - D) / CELL)), gx1 = Math.min(SW - 1, Math.floor((a.x + D) / CELL));
+            const gy0 = Math.max(0, Math.floor((a.y - D) / CELL)), gy1 = Math.min(SH - 1, Math.floor((a.y + D) / CELL));
+            for (let gx = gx0; gx <= gx1; gx++) {
+              if (gy1 < sandTop[gx]) continue;       // this column's sand is below the marble
+              for (let gy = Math.max(gy0, sandTop[gx]); gy <= gy1; gy++) {
+                if (!sand[gy * SW + gx]) continue;
+                const cx = (gx + 0.5) * CELL, cy = (gy + 0.5) * CELL;
+                let dx = a.x - cx, dy = a.y - cy;
+                let d2 = dx * dx + dy * dy;
+                if (d2 >= D * D) continue;
+                if (d2 < 1e-9) { dx = 0; dy = -1; d2 = 1; }
+                const d = Math.sqrt(d2);
+                const nx = dx / d, ny = dy / d;
+                a.x = cx + nx * D; a.y = cy + ny * D;
+                const vn = a.vx * nx + a.vy * ny;
+                if (first && vn < 0) { a.vx -= (1 + BOUNCE) * vn * nx; a.vy -= (1 + BOUNCE) * vn * ny; }
+                if (first) { a.touch = a.onSand = true; a.contacts++; a.lastNx = nx; if (ny < 0) a.below++; }
+              }
+            }
+          }
+          if (a.x < r) { a.x = r; if (a.vx < 0) a.vx = 0; a.wall = true; }
+          else if (a.x > GW - r) { a.x = GW - r; if (a.vx > 0) a.vx = 0; a.wall = true; }
+          if (a.y > GH - r) { a.y = GH - r; if (a.vy > 0) a.vy = 0; a.floor = true; }
         }
       }
-      // A push off a neighbour can nudge a marble into a wall: keep it inside.
-      if (x < r) { x = r; if (vx < 0) vx = 0; wall = true; }
-      else if (x > GW - r) { x = GW - r; if (vx > 0) vx = 0; wall = true; }
-      if (y > GH - r) { y = GH - r; if (vy > 0) vy = 0; floor = true; }
-      if (touching) { vx *= DRAG; vy *= DRAG; }
-      if (onSand) { vx *= 0.9; vy *= 0.9; }
-      // Balanced on top of a single marble: keep rolling off it.
-      const perched = contacts === 1 && !floor && !wall;
-      if (perched) vx += lastNx >= 0 ? 0.04 : -0.04;
-      if (path) path.push(x, y);
-      if (!perched && (floor || contacts >= 2 || (wall && contacts >= 1)) && vx * vx + vy * vy < 0.02) {
-        if (++calm >= 12) break;
-      } else calm = 0;
-      if (touching && vx * vx + vy * vy < 0.005) { if (++still >= 30) break; } else still = 0;
+      for (const b of balls) if (b.aw) {
+        if (b.touch) { b.vx *= DRAG; b.vy *= DRAG; }
+        if (b.onSand) { b.vx *= 0.9; b.vy *= 0.9; }
+        // balanced on top of a single marble: keep rolling off it
+        const perched = b.contacts === 1 && !b.floor && !b.wall;
+        if (perched) b.vx += b.lastNx >= 0 ? 0.04 : -0.04;
+        const sp = b.vx * b.vx + b.vy * b.vy;
+        let rest = false;
+        if (!perched && (b.floor || b.contacts >= 2 || (b.wall && b.contacts >= 1)) && sp < 0.02) { if (++b.calm >= 12) rest = true; }
+        else b.calm = 0;
+        if (b.touch && sp < 0.02) { if (++b.still >= 40) rest = true; } else b.still = 0;
+        if (tl) tl.put(b, T0 + step, b.x, b.y, b.r, 1);
+        if (rest) { b.aw = false; b.vx = 0; b.vy = 0; awake--; }
+      }
     }
-    for (let it = 0; it < 8; it++) {          // squeezed between neighbours: push it fully out
+    for (const b of balls) if (b.aw) { b.aw = false; b.vx = 0; b.vy = 0; }
+    if (tl) tl.advance(step);
+    // tidy: no overflow, no sand inside a marble (overlaps are cleaned up for the whole box afterwards)
+    for (const b of moved) {
+      if (!balls.includes(b)) continue;
+      if (b.y < b.r - 0.5) { balls = balls.filter(o => o !== b); continue; }   // resting above the box: it overflows
+      if (sandCount) shiftSandOut(b);
+      if (tl) tl.put(b, tl.now(), b.x, b.y, b.r, 1);
+    }
+    return [...moved];
+  }
+
+  // Whole-box cleanup: every overlapping pair is pushed apart by weight (floor and walls hold firm)
+  // until nothing overlaps; anything still wedged moves to the nearest clear spot. Returns the
+  // marbles that moved noticeably, with where they were.
+  function relaxAll() {
+    const start = new Map();
+    for (let it = 0; it < 40; it++) {
+      let worst = 0;
+      for (let i = 0; i < balls.length; i++) {
+        const a = balls[i];
+        for (let j = i + 1; j < balls.length; j++) {
+          const b = balls[j];
+          const D = a.r + b.r;
+          let dx = a.x - b.x, dy = a.y - b.y;
+          if (dx > D || dx < -D || dy > D || dy < -D) continue;
+          let d2 = dx * dx + dy * dy;
+          if (d2 >= (D - 0.05) * (D - 0.05)) continue;
+          if (d2 < 1e-9) { dx = 0; dy = -1; d2 = 1; }
+          const d = Math.sqrt(d2), pen = D - d, nx = dx / d, ny = dy / d;
+          if (pen > worst) worst = pen;
+          if (!start.has(a)) start.set(a, [a.x, a.y]);
+          if (!start.has(b)) start.set(b, [b.x, b.y]);
+          const [sa, sb] = shares(a, b, nx, ny);
+          a.x += nx * pen * sa; a.y += ny * pen * sa;
+          b.x -= nx * pen * sb; b.y -= ny * pen * sb;
+        }
+      }
+      for (const b of start.keys()) {
+        if (b.x < b.r) b.x = b.r; else if (b.x > GW - b.r) b.x = GW - b.r;
+        if (b.y > GH - b.r) b.y = GH - b.r;
+      }
+      if (worst < 0.05) break;
+    }
+    const nudged = [];
+    for (const [b, [x, y]] of start) {
+      if (!balls.includes(b)) continue;
+      unwedge(b);
+      if (sandCount) shiftSandOut(b);
+      const dx = b.x - x, dy = b.y - y;
+      if (dx * dx + dy * dy > 0.25) nudged.push({ b, x, y });
+    }
+    return nudged;
+  }
+
+  // Any two touching marbles of the same kind, in a fixed order.
+  function anyMerge() {
+    for (let i = 0; i < balls.length; i++) {
+      const a = balls[i];
+      for (let j = i + 1; j < balls.length; j++) {
+        const b = balls[j];
+        if (a.c !== b.c) continue;
+        const D = a.r + b.r + TOUCH, dx = a.x - b.x, dy = a.y - b.y;
+        if (dx * dx + dy * dy <= D * D) return findMerge(a);
+      }
+    }
+    return null;
+  }
+
+  // Marbles that just moved nudge each other (and themselves off settled ones) until none overlap,
+  // so a jam can spread out instead of one marble staying inside another.
+  function relax(moved) {
+    const list = [...moved].filter(b => balls.includes(b));
+    for (let it = 0; it < 24; it++) {
+      let worst = 0;
+      for (const a of list) {
+        for (const b of balls) {
+          if (b === a) continue;
+          const bMoved = moved.has(b);
+          if (bMoved && b.i < a.i) continue;     // each moving pair once
+          const D = a.r + b.r;
+          let dx = a.x - b.x, dy = a.y - b.y;
+          if (dx > D || dx < -D || dy > D || dy < -D) continue;
+          let d2 = dx * dx + dy * dy;
+          if (d2 >= (D - 0.05) * (D - 0.05)) continue;
+          if (d2 < 1e-9) { dx = 0; dy = -1; d2 = 1; }
+          const d = Math.sqrt(d2), pen = D - d, nx = dx / d, ny = dy / d;
+          if (pen > worst) worst = pen;
+          if (bMoved) {
+            const [sa, sb] = shares(a, b, nx, ny);
+            a.x += nx * pen * sa; a.y += ny * pen * sa; b.x -= nx * pen * sb; b.y -= ny * pen * sb;
+          } else { a.x += nx * pen; a.y += ny * pen; }
+        }
+      }
+      for (const b of list) {
+        if (b.x < b.r) b.x = b.r; else if (b.x > GW - b.r) b.x = GW - b.r;
+        if (b.y > GH - b.r) b.y = GH - b.r;
+      }
+      if (worst < 0.05) break;
+    }
+  }
+
+  // Pushes a marble out of any neighbour it ended up inside; if it's wedged, moves it to the
+  // nearest clear spot (upward first, fixed directions so every screen picks the same spot).
+  function unwedge(m) {
+    const r = m.r;
+    let x = m.x, y = m.y;
+    for (let it = 0; it < 8; it++) {
       let moved = false;
       for (const b of balls) {
+        if (b === m) continue;
         const D = r + b.r;
         const dx = x - b.x, dy = y - b.y, d2 = dx * dx + dy * dy;
         if (d2 >= (D - 0.05) * (D - 0.05)) continue;
@@ -625,8 +814,8 @@
       if (y > GH - r) y = GH - r;
       if (!moved) break;
     }
-    const inside = (px, py) => balls.some(b => { const dx = px - b.x, dy = py - b.y, D = r + b.r - 0.3; return dx * dx + dy * dy < D * D; });
-    if (inside(x, y)) {                       // still wedged: move to the nearest clear spot, upward first
+    const inside = (px, py) => balls.some(b => { if (b === m) return false; const dx = px - b.x, dy = py - b.y, D = r + b.r - 0.3; return dx * dx + dy * dy < D * D; });
+    if (inside(x, y)) {
       const dirs = [[0, -1], [0.3827, -0.9239], [-0.3827, -0.9239], [0.7071, -0.7071], [-0.7071, -0.7071],
         [0.9239, -0.3827], [-0.9239, -0.3827], [1, 0], [-1, 0], [0.7071, 0.7071], [-0.7071, 0.7071], [0, 1]];
       search:
@@ -638,10 +827,7 @@
         }
       }
     }
-    ball.x = x; ball.y = y;
-    const kept = y >= r - 0.5;               // a marble resting above the box overflows
-    if (kept) { balls.push(ball); if (sandCount) shiftSandOut(ball); }
-    return kept;
+    m.x = x; m.y = y;
   }
 
   // Grains a marble was nudged into are moved up over its top and poured from there.
@@ -693,7 +879,7 @@
     return below >= 2 || (wall && below >= 1);
   }
 
-  // The first same-kind marble touching `a`, and a spot where their combined marble fits.
+  // The first same-kind marble touching `a`, and a spot where their combined marble goes.
   function findMerge(a) {
     let b = null;
     for (const o of balls) {
@@ -715,60 +901,58 @@
     return { a, b, x, y: -r, r };              // no room nearby: it drops in from the top
   }
 
-  const byLowestFirst = (p, q) => q.y - p.y || (p.i < q.i ? -1 : p.i > q.i ? 1 : 0);
+  const touchesSpot = (b, spots) => spots.some(g => { const dx = b.x - g.x, dy = b.y - g.y, rr = b.r + g.r + 2; return dx * dx + dy * dy <= rr * rr; });
 
-  // Marbles left hanging drop into gaps; anything that lands goes on the merge queue.
-  // `gone` lists the spots ({x, y, r}) where something just went away; only marbles touching
-  // those spots can have lost their support, so only they are checked.
-  function dropLoose(queue, tl, gone) {
-    for (let round = 0; round < 8 && gone.length; round++) {
-      const near = b => gone.some(g => { const dx = b.x - g.x, dy = b.y - g.y, rr = b.r + g.r + 2; return dx * dx + dy * dy <= rr * rr; });
-      const loose = balls.filter(o => near(o) && !supported(o)).sort(byLowestFirst);
-      gone = [];
-      const moves = [];
-      for (const o of loose) {
-        if (!balls.includes(o) || supported(o)) continue;
-        const sx = o.x, sy = o.y;
-        balls = balls.filter(q => q !== o);
-        const p = tl ? [] : null;
-        if (roll(o, sx, sy, 0, p)) queue.push(o);
-        if (tl) moves.push([o, p, sx, sy]);
-        if (o.x !== sx || o.y !== sy) gone.push({ x: sx, y: sy, r: o.r });
-      }
-      if (tl && moves.length) tl.moveTogether(moves);
-    }
-  }
-  // Marbles fall, then sand left hanging pours, which can leave more marbles hanging.
-  function settleGaps(queue, tl, gone, rand) {
-    for (let k = 0; k < 4; k++) {
-      dropLoose(queue, tl, gone);
-      const poured = pourLooseSand(rand);
-      if (!poured) return;
-      gone = [poured];
-    }
-  }
-
-  // Plays out merges, falling marbles and pouring sand until everything is still.
-  function settleAll(queue, ch, tl, gone) {
+  // Plays out an event: moving marbles, marbles that lose their support, pouring sand and merges,
+  // until everything is still. `gone` lists spots ({x, y, r}) where something just went away.
+  function playOut(ch, tl, movers, gone) {
     const rand = rng32((ch.s ^ 0x9e3779b9) >>> 0);
-    let made = 0, guard = 0;
-    settleGaps(queue, tl, gone, rand);
-    while (queue.length && guard++ < 80) {
-      const a = queue.shift();
-      if (!balls.includes(a)) continue;
-      const mg = findMerge(a);
-      if (!mg) continue;
-      const left = [{ x: mg.a.x, y: mg.a.y, r: mg.a.r }, { x: mg.b.x, y: mg.b.y, r: mg.b.r }];
+    const queue = [];
+    const woken = new Map();                   // how often each marble was woken for losing support
+    let made = 0, pending = null;
+    for (let round = 0; round < 40; round++) {
+      if (gone.length) {
+        for (const b of balls) {
+          if (movers.includes(b) || (woken.get(b) || 0) >= 2 || !touchesSpot(b, gone) || supported(b)) continue;
+          woken.set(b, (woken.get(b) || 0) + 1);
+          if (tl) tl.holdUntil(b, b.x, b.y, tl.now());
+          b.vx = 0; b.vy = 0; movers.push(b);
+        }
+      }
+      gone = [];
+      if (movers.length) {
+        const moved = simulate(movers, tl);
+        movers = [];
+        for (const b of moved) {
+          const dx = b.x - b.sx, dy = b.y - b.sy;
+          if (dx * dx + dy * dy > 1) gone.push({ x: b.sx, y: b.sy, r: b.r });   // a wiggle doesn't count
+          if (balls.includes(b)) queue.push(b);
+        }
+        if (pending && !balls.includes(pending.m)) { balls.push(pending.a, pending.b); }   // box full: they stay apart
+        pending = null;
+      }
+      const poured = pourLooseSand(rand);
+      if (poured) gone.push(poured);
+      if (gone.length) continue;               // something may have lost its support
+      const nudged = relaxAll();               // nothing inside anything else
+      if (nudged.length) {
+        for (const { b, x, y } of nudged) { gone.push({ x, y, r: b.r }); if (tl) tl.put(b, tl.now(), b.x, b.y, b.r, 1); }
+        if (tl) tl.advance(1);
+        continue;
+      }
+      const settledSand = pourLooseSand(rand); // tiny nudges can leave a grain hanging
+      if (settledSand) { gone = [settledSand]; continue; }
+      let mg = null;                           // touching marbles of the same kind combine
+      while (queue.length && !mg) { const a = queue.shift(); if (balls.includes(a)) mg = findMerge(a); }
+      if (!mg) mg = anyMerge();
+      if (!mg) return;
+      const m = { x: mg.x, y: mg.y, r: mg.r, c: mg.a.c, i: ch.i + '/' + (++made), n: mg.a.n + mg.b.n, vx: 0, vy: 0 };
+      gone = [{ x: mg.a.x, y: mg.a.y, r: mg.a.r }, { x: mg.b.x, y: mg.b.y, r: mg.b.r }];
       balls = balls.filter(o => o !== mg.a && o !== mg.b);
-      const m = { x: mg.x, y: mg.y, r: mg.r, c: a.c, i: ch.i + '/' + (++made), n: mg.a.n + mg.b.n };
       if (tl) tl.merge(mg.a, mg.b, m);
-      const p2 = tl ? [] : null;
-      const mx = m.x, my = m.y;
-      if (roll(m, m.x, m.y, 0, p2)) queue.push(m);
-      else { balls.push(mg.a, mg.b); continue; }   // the box is full: they stay as they were
-      if (tl) tl.move(m, p2);
-      left.push({ x: mx, y: my, r: m.r });
-      settleGaps(queue, tl, left, rand);
+      balls.push(m);
+      movers = [m];
+      pending = { m, a: mg.a, b: mg.b };
     }
   }
 
@@ -778,11 +962,9 @@
     const x = Math.min(GW - R, Math.max(R, ch.p[0]));
     let y = Math.min(GH - R, Math.max(R, ch.p[1]));
     if (overlapsAny(x, y, R)) y = -R;        // tapped inside the pile: drop from the top instead
-    const ball = { x, y, r: R, c: ch.c, i: ch.i, n: 1 };
-    const path = tl ? [] : null;
-    const kept = roll(ball, x, y, (rand() - 0.5) * 0.6, path);
-    if (tl) tl.drop(ball, path, kept);
-    if (kept) settleAll([ball], ch, tl, []);
+    const ball = { x, y, r: R, c: ch.c, i: ch.i, n: 1, vx: (rand() - 0.5) * 0.6, vy: 0 };
+    balls.push(ball);
+    playOut(ch, tl, [ball], []);
   }
 
   function grainColour(rgb, s) {
@@ -801,7 +983,7 @@
     return hit;
   }
 
-  // Pops the marble under the tap into sand.
+  // Pops the tapped marble into sand.
   function pop(ch, tl) {
     const target = (ch.t && balls.find(b => b.i === ch.t)) || marbleAt(ch.p[0], ch.p[1]);
     if (!target) return;
@@ -828,7 +1010,7 @@
       if (grains) grains.push(gx, gy, idx % SW, (idx - idx % SW) / SW, col);
     }
     if (tl) tl.sand(grains);
-    settleAll([], ch, tl, [{ x: target.x, y: target.y, r: target.r }]);
+    playOut(ch, tl, [], [{ x: target.x, y: target.y, r: target.r }]);
   }
 
   // ---- animation timeline for one drop or pop (frames at 60 fps) ----
@@ -846,17 +1028,11 @@
       if (!tracks.has(b.i)) for (let k = 0; k < f; k++) put(b, k, x, y, b.r, 1);
       else put(b, f, x, y, b.r, 1);
     }
-    function path(b, p, from) {
-      for (let k = 0; k < p.length; k += 2) put(b, from + k / 2, p[k], p[k + 1], b.r, 1);
-      return p.length / 2;
-    }
     return {
-      drop(b, p, kept) {
-        T = path(b, p, 0);
-        if (!kept) { const [x, y] = [p[p.length - 2], p[p.length - 1]]; for (let k = 0; k < 24; k++) put(b, T + k, x, y, b.r, 1 - k / 24); }
-      },
+      now: () => T,
+      advance(n) { T += n; },
+      put, holdUntil,
       pop(b) {                                // swells a little and fades as it bursts
-        holdUntil(b, b.x, b.y, 0);
         for (let k = 0; k <= 8; k++) put(b, k, b.x, b.y, b.r * (1 + 0.18 * k / 8), 1 - k / 8);
         T = 3;
       },
@@ -885,12 +1061,6 @@
         }
         for (let k = 0; k <= 8; k++) put(m, T + 4 + k, m.x, m.y, m.r * (0.55 + 0.45 * k / 8), 0.4 + 0.6 * k / 8);
         T += 12;
-      },
-      move(m, p) { T += path(m, p, T); },
-      moveTogether(list) {
-        let longest = 0;
-        for (const [o, p, sx, sy] of list) { holdUntil(o, sx, sy, T); longest = Math.max(longest, path(o, p, T)); }
-        T += longest;
       },
       finish(alive) {
         const end = Math.max(T, sandEnd) + 1;
@@ -944,9 +1114,10 @@
     const limit = now - HORIZON;
     while (committed < chunks.length && chunks[committed].k <= limit) {
       const ch = chunks[committed];
-      const fresh = !everCommitted.has(ch.i) && ch.k > now - 5000;
-      // new events wait for the next frame once this one has done 8 ms of work
-      if (fresh && frameStart !== undefined && performance.now() - frameStart > 8) break;
+      const replay = everCommitted.has(ch.i);  // re-doing it after a late arrival: finish now so nothing flickers
+      // new events wait for the next frame once this one has done 8 ms of work (even a big catch-up)
+      if (!replay && frameStart !== undefined && performance.now() - frameStart > 8) break;
+      const fresh = !replay && ch.k > now - 5000;
       worldVersion++;
       everCommitted.add(ch.i);
       const tl = fresh ? makeTimeline() : null;
@@ -1004,8 +1175,8 @@
     addChunk(ch, false);
     send(ch);
   }
-  // At most one drop or pop every 250 ms per screen, so a room full of fast tappers stays smooth.
-  const ACTION_GAP = 250;
+  // At most one drop or pop every 350 ms per screen, so a room full of fast tappers stays smooth.
+  const ACTION_GAP = 350;
   let lastAction = -1e9;
   function canAct(now) {
     if (now - lastAction < ACTION_GAP) return false;
@@ -1542,12 +1713,16 @@
     ctx.globalAlpha = 1;
     ctx.drawImage(layer, 0, 0);
     const visible = balls.filter(b => !busy.has(b.i));
-    for (const a of anims) {
+    const drawn = new Set();                   // a marble in several animations is drawn once, from the newest
+    for (let ai = anims.length - 1; ai >= 0; ai--) {
+      const a = anims[ai];
       const f = Math.floor((now - a.t0) / STEP_MS);
       for (const [id, t] of a.tracks) {
+        if (drawn.has(id)) continue;
         if (f >= t.f.length) continue;
         const fr = t.f[f];
         if (!fr) continue;
+        drawn.add(id);
         if (popping.has(id) && balls.some(b => b.i === id)) continue;   // drawn bursting below
         drawMarble(t.c, fr[0], fr[1], fr[2], fr[3]);
         if (fr[3] > 0.6) visible.push({ i: id, c: t.c, x: fr[0], y: fr[1], r: fr[2] });
