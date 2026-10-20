@@ -1,3 +1,4 @@
 # Teacher code template: paste into Firebase, never publish
 database.rules.json
 .DS_Store
+.claude/

@@ -17,6 +17,8 @@ Named versions are git tags (`git tag -l`). When the user says "save this as ver
 
 - `v1` (2026-10-20): first working classroom version. Nine feelings (Happy, Sad, Mad, Scared, Worried, Excited, Sleepy, Calm, Proud), play/display/teacher modes, Firebase sync with teacher-code Start fresh.
 
+- `v2` (2026-10-20): emotion-card picker. Nine framed cards in poster order and colors (Sadness, Disgust, Ennui, Anger, Anxiety, Embarrassment, Envy, Fear, Joy) with original drawn faces; Joy selected by default. Do not use the Inside Out character artwork from the user's reference image: it is copyrighted and the site is public.
+
 To go back to a version, restore its files onto `main` with a new commit (`git checkout vN -- .` then commit and push) instead of rewriting history, so the site and every later version stay intact.
 
 ## Files
