@@ -23,9 +23,9 @@ To go back to a version, restore its files onto `main` with a new commit (`git c
 
 ## Memories experiment (`memories.html`)
 
-Glowing emotion marbles instead of sand, same modes (`memories.html#play`, `#display`, `#teacher-CODE`). Same sync design: ordered drop log, commit horizon, checkpoints and rollback. Marble settling (`settle`) must stay deterministic like sand placement: seeded `rng32`, plain arithmetic and `Math.sqrt` only. Settled marbles never move; each new one falls, bounces and rolls until it rests. The box holds about 200 marbles.
+Cat-memory marbles instead of sand: three feelings (Happy yellow, Angry red, Sad blue), each a glowing glass marble with the user's cat photo inside (`images/cat-*.webp`: face cropped, bulged like seen through glass, cut to a circle; tint, edge shading and glints are drawn in `paintMarble`). Same modes (`memories.html#play`, `#display`, `#teacher-CODE`). Same sync design: ordered drop log, commit horizon, checkpoints and rollback. Marble settling (`settle`) must stay deterministic like sand placement: seeded `rng32`, plain arithmetic and `Math.sqrt` only. Settled marbles never move; each new one falls, bounces and rolls until it rests. Radius 16; the box holds about 140 marbles.
 
-Its drops live in Firebase at `pours/m<gen>` and its screens report modes `mplay`/`mdisplay`, so it works under the existing rules. Both pages share `state/gen`, so Start fresh on either page clears both.
+Its drops live in Firebase at `pours/c<gen>` (the earlier nine-colour marble test used `pours/m<gen>`) and its screens report modes `mplay`/`mdisplay`, so it works under the existing rules. Both pages share `state/gen`, so Start fresh on either page clears both.
 
 ## Files
 
