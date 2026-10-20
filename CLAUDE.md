@@ -21,6 +21,12 @@ Named versions are git tags (`git tag -l`). When the user says "save this as ver
 
 To go back to a version, restore its files onto `main` with a new commit (`git checkout vN -- .` then commit and push) instead of rewriting history, so the site and every later version stay intact.
 
+## Memories experiment (`memories.html`)
+
+Glowing emotion marbles instead of sand, same modes (`memories.html#play`, `#display`, `#teacher-CODE`). Same sync design: ordered drop log, commit horizon, checkpoints and rollback. Marble settling (`settle`) must stay deterministic like sand placement: seeded `rng32`, plain arithmetic and `Math.sqrt` only. Settled marbles never move; each new one falls, bounces and rolls until it rests. The box holds about 200 marbles.
+
+Its drops live in Firebase at `pours/m<gen>` and its screens report modes `mplay`/`mdisplay`, so it works under the existing rules. Both pages share `state/gen`, so Start fresh on either page clears both.
+
 ## Files
 
 - `index.html`: the whole game (HTML, CSS and JS in one file).

@@ -1,0 +1,917 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sandfall Memories</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@500&family=Oswald:wght@600&display=swap">
+<style>
+  [hidden] { display: none !important; }
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; font-size: 14px; }
+
+  /* Layout: header row, one shared memory box scaled to fit (same 480x300 world on every screen), then the marble picker (play) or a quiet footer (display). */
+  :root {
+    --bg: #e4e9ed;
+    --sky: #f3f6f8;
+    --box: #fbfcfd;
+    --ink: #1c2530;
+    --muted: #5a6876;
+    --surface: rgba(255, 255, 255, 0.82);
+    --line: rgba(28, 37, 48, 0.12);
+    --accent: #b8612a;
+    --live: #2f9e6a;
+    --warn: #b5482f;
+    --shadow: 0 10px 30px rgba(28, 37, 48, 0.14);
+    --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --font-label: "Oswald", "Arial Narrow", "Helvetica Neue", sans-serif-condensed, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10151b; --sky: #1a222b; --box: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
+      --surface: rgba(24, 31, 39, 0.84); --line: rgba(232, 237, 242, 0.12);
+      --accent: #e59a5e; --live: #4cc48c; --warn: #f07a5e; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151b; --sky: #1a222b; --box: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
+    --surface: rgba(24, 31, 39, 0.84); --line: rgba(232, 237, 242, 0.12);
+    --accent: #e59a5e; --live: #4cc48c; --warn: #f07a5e; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+
+  html, body { height: 100%; }
+  body {
+    background: linear-gradient(to bottom, var(--sky), var(--bg)) var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .app {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-block: 14px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    box-sizing: border-box;
+  }
+
+  .top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .mark { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .mark h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.5rem;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .beta {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    padding: 2px 6px 1px;
+  }
+  .mark p { margin: 0; font-size: 0.82rem; color: var(--muted); }
+  .notice { margin: 0; font-size: 0.82rem; font-weight: 600; color: var(--warn); }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 12px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .status.live .dot { background: var(--live); box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 25%, transparent); }
+  .status.live { color: var(--ink); }
+
+  .box {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    place-items: center;
+  }
+  canvas {
+    display: block;
+    max-width: 100%;
+    background: var(--box);
+    border-radius: 14px;
+    box-shadow: 0 0 0 1px var(--line), var(--shadow);
+    touch-action: none;
+  }
+  body[data-mode="play"] canvas { cursor: pointer; }
+  .empty {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    text-align: center;
+    padding: 24px;
+  }
+  .empty p {
+    margin: 0;
+    max-width: 30ch;
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: clamp(1rem, 2.4vw, 1.6rem);
+    line-height: 1.3;
+    color: var(--muted);
+    text-wrap: balance;
+  }
+
+  .dock {
+    align-self: center;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px 14px;
+    padding: 10px 12px 8px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .moods {
+    display: grid;
+    grid-template-columns: repeat(9, minmax(0, 78px));
+    gap: 4px;
+  }
+  .mood {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 6px 2px 4px;
+    background: none;
+    border: 0;
+    border-radius: 12px;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  /* A glass marble: soft glow outside, light core, darker rim, a white glint. */
+  .orb {
+    position: relative;
+    width: 54px;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background:
+      radial-gradient(ellipse 34% 24% at 34% 26%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 100%),
+      radial-gradient(circle at 50% 58%, color-mix(in srgb, var(--c) 45%, #fff) 0%, var(--c) 55%, color-mix(in srgb, var(--c) 70%, #000) 100%);
+    box-shadow:
+      0 0 14px 2px color-mix(in srgb, var(--c) 55%, transparent),
+      inset 0 -5px 10px color-mix(in srgb, var(--c) 55%, #000),
+      inset 0 0 0 1.5px rgba(255, 255, 255, 0.35);
+    opacity: 0.93;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .orb svg { position: absolute; left: 14%; top: 20%; width: 72%; opacity: 0.85; }
+  .mood .label {
+    font: 600 var(--fs, 0.66rem) / 1 var(--font-label);
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    color: var(--muted);
+  }
+  .mood:hover .orb { transform: translateY(-2px); }
+  .mood[aria-pressed="true"] .orb {
+    transform: translateY(-3px) scale(1.12);
+    box-shadow:
+      0 0 26px 8px color-mix(in srgb, var(--c) 70%, transparent),
+      inset 0 -5px 10px color-mix(in srgb, var(--c) 55%, #000),
+      inset 0 0 0 1.5px rgba(255, 255, 255, 0.5);
+  }
+  .mood[aria-pressed="true"] .label { color: var(--ink); }
+  .mood:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .count {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    padding-inline: 4px;
+  }
+
+  .foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .teacher { display: flex; gap: 8px; opacity: 0.55; transition: opacity 0.2s ease; }
+  .teacher:hover, .teacher:focus-within { opacity: 1; }
+  .btn {
+    font: 600 0.8rem var(--font-body);
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--muted); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn.armed { color: var(--warn); border-color: var(--warn); }
+
+  body[data-mode="display"] .mark h1 { font-size: 1.25rem; }
+
+  @media (max-width: 760px) {
+    .dock { width: 100%; }
+    .moods { grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; row-gap: 6px; }
+    .orb { width: 46px; }
+  }
+  @media (max-width: 480px) {
+    .mark h1 { font-size: 1.25rem; }
+    .hint-wide { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .orb, .teacher { transition: none; }
+  }
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="config.js"></script>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div class="mark">
+      <h1>Sandfall Memories <span class="beta">experiment</span></h1>
+      <p id="hint"></p>
+      <p class="notice" id="notice" hidden></p>
+    </div>
+    <span class="status" id="status"><span class="dot"></span><span id="statusText">Connecting…</span></span>
+  </header>
+
+  <main class="box" id="box">
+    <canvas id="world"></canvas>
+    <div class="empty" id="empty"><p id="emptyText"></p></div>
+  </main>
+
+  <div class="dock" id="dock">
+    <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
+    <span class="count" id="count">0 memories</span>
+  </div>
+
+  <footer class="foot" id="foot" hidden>
+    <span class="count" id="dcount">0 memories</span>
+    <div class="teacher">
+      <button class="btn" id="fs" type="button">Full screen</button>
+      <button class="btn" id="fresh" type="button" hidden>Start fresh</button>
+    </div>
+  </footer>
+</div>
+
+<script>
+(() => {
+  // Every screen rebuilds the same pile from the same ordered list of drops.
+  // A drop is a tap position plus a seed. Settling a marble uses only that seed
+  // and plain arithmetic (+ - * / sqrt), so all screens agree to the last digit.
+  const GW = 480, GH = 300;      // shared world, in world units
+  const R = 13;                  // marble radius
+  const D = R * 2, D2 = D * D;
+  const G = 0.25;                // gravity per step (one step = 1/60 s)
+  const VMAX = 9;
+  const BOUNCE = 0.3;
+  const DRAG = 0.985;            // speed kept per step while touching something
+  const MAX_STEPS = 1200;
+  const HORIZON = 400;           // ms a drop waits before it settles, so late arrivals can slot in
+  const REPEAT_MS = 350;         // holding drops a marble this often
+  const CHECKPOINT_EVERY = 25;
+  const STEP_MS = 1000 / 60;
+
+  const MOODS = [
+    { name: 'Sadness',       hex: '#19559c', ink: '#a9c4ec', face: 'sadness' },
+    { name: 'Disgust',       hex: '#1ec461', ink: '#0b5a2a', face: 'disgust' },
+    { name: 'Ennui',         hex: '#6e70d6', ink: '#23246e', face: 'ennui' },
+    { name: 'Anger',         hex: '#f92d35', ink: '#7e0b10', face: 'anger' },
+    { name: 'Anxiety',       hex: '#fb8238', ink: '#8a2e05', face: 'anxiety' },
+    { name: 'Embarrassment', hex: '#ea72a5', ink: '#8c1d50', face: 'embarrassment' },
+    { name: 'Envy',          hex: '#32bdbc', ink: '#0b4f50', face: 'envy' },
+    { name: 'Fear',          hex: '#b676c0', ink: '#4f2463', face: 'fear' },
+    { name: 'Joy',           hex: '#fbe92d', ink: '#6b5c00', face: 'joy' },
+  ];
+
+  const $ = id => document.getElementById(id);
+  const canvas = $('world'), ctx = canvas.getContext('2d');
+  const box = $('box');
+
+  const session = Math.random().toString(36).slice(2, 10);
+  let seq = 0;
+  let mode = 'play';
+  let mood = MOODS.findIndex(m => m.name === 'Joy');
+
+  function rng32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ---- deterministic marble physics ----
+  // Settled marbles never move again; each new one falls, bounces and rolls
+  // over them until it comes to rest.
+  let balls = [];                 // {x, y, c, i}
+  let cells = new Map();          // grid of settled marbles, cell size D
+  const cellKey = (cx, cy) => cy * 1024 + cx;
+  function addToGrid(idx) {
+    const b = balls[idx];
+    const k = cellKey(Math.floor(b.x / D), Math.floor(b.y / D));
+    let list = cells.get(k);
+    if (!list) { list = []; cells.set(k, list); }
+    list.push(idx);
+  }
+  function rebuildGrid() {
+    cells = new Map();
+    for (let i = 0; i < balls.length; i++) addToGrid(i);
+  }
+  function overlapsAny(x, y) {
+    const cx = Math.floor(x / D), cy = Math.floor(y / D);
+    for (let gy = cy - 1; gy <= cy + 1; gy++) {
+      if (gy < 0) continue;
+      for (let gx = cx - 1; gx <= cx + 1; gx++) {
+        const list = cells.get(cellKey(gx, gy));
+        if (!list) continue;
+        for (const j of list) {
+          const dx = x - balls[j].x, dy = y - balls[j].y;
+          if (dx * dx + dy * dy < D2) return true;
+        }
+      }
+    }
+    return false;
+  }
+  function settle(ch, path) {
+    const rand = rng32(ch.s);
+    let x = Math.min(GW - R, Math.max(R, ch.p[0]));
+    let y = Math.min(GH - R, Math.max(R, ch.p[1]));
+    if (overlapsAny(x, y)) y = -R;          // tapped inside the pile: drop from the top instead
+    let vx = (rand() - 0.5) * 0.6, vy = 0;
+    let calm = 0;
+    for (let step = 0; step < MAX_STEPS; step++) {
+      vy = Math.min(vy + G, VMAX);
+      x += vx; y += vy;
+      let touching = false, floor = false, wall = false, contacts = 0, lastNx = 0;
+      if (x < R) { x = R; if (vx < 0) vx = -vx * BOUNCE; touching = wall = true; }
+      else if (x > GW - R) { x = GW - R; if (vx > 0) vx = -vx * BOUNCE; touching = wall = true; }
+      if (y > GH - R) { y = GH - R; if (vy > 0) vy = -vy * BOUNCE; touching = floor = true; }
+      const cx = Math.floor(x / D), cy = Math.floor(y / D);
+      for (let gy = cy - 1; gy <= cy + 1; gy++) {
+        if (gy < 0) continue;
+        for (let gx = cx - 1; gx <= cx + 1; gx++) {
+          const list = cells.get(cellKey(gx, gy));
+          if (!list) continue;
+          for (const j of list) {
+            const b = balls[j];
+            let dx = x - b.x, dy = y - b.y;
+            let d2 = dx * dx + dy * dy;
+            if (d2 >= D2) continue;
+            if (d2 < 1e-9) { dx = 0.01; dy = -1; d2 = 1.0001; }
+            const d = Math.sqrt(d2);
+            const nx = dx / d, ny = dy / d;
+            x = b.x + nx * D; y = b.y + ny * D;
+            const vn = vx * nx + vy * ny;
+            if (vn < 0) { vx -= (1 + BOUNCE) * vn * nx; vy -= (1 + BOUNCE) * vn * ny; }
+            touching = true;
+            contacts++;
+            lastNx = nx;
+          }
+        }
+      }
+      // A push off a neighbour can nudge a marble into a wall: keep it inside.
+      if (x < R) { x = R; if (vx < 0) vx = 0; wall = true; }
+      else if (x > GW - R) { x = GW - R; if (vx > 0) vx = 0; wall = true; }
+      if (y > GH - R) { y = GH - R; if (vy > 0) vy = 0; floor = true; }
+      if (touching) { vx *= DRAG; vy *= DRAG; }
+      // Balanced on top of a single marble: keep rolling off it.
+      const perched = contacts === 1 && !floor && !wall;
+      if (perched) vx += lastNx >= 0 ? 0.04 : -0.04;
+      if (path) path.push(x, y);
+      if (!perched && (floor || contacts >= 2 || (wall && contacts >= 1)) && vx * vx + vy * vy < 0.02) {
+        if (++calm >= 12) break;
+      } else calm = 0;
+    }
+    const kept = y >= R - 0.5;               // a marble resting above the box overflows
+    if (kept) {
+      balls.push({ x, y, c: ch.c, i: ch.i });
+      addToGrid(balls.length - 1);
+    }
+    return kept;
+  }
+
+  // ---- ordered drop log ----
+  let gen = 'local';
+  let chunks = [], seen = new Set(), committed = 0, checkpoints = [];
+  let everCommitted = new Set();
+  let lastKey = 0, skew = 0, clockOffset = 0;
+  let anims = new Map();          // id -> {path, t0, kept, c}
+
+  const logicalNow = () => Date.now() + clockOffset + skew;
+  function nextKey() {
+    lastKey = Math.max(Math.floor(logicalNow()), lastKey + 1);
+    return lastKey;
+  }
+  function observeKey(k) {
+    if (k > lastKey) lastKey = k;
+    const ahead = k - (Date.now() + clockOffset);
+    if (ahead > skew) skew = Math.min(60000, ahead);
+  }
+  function cmp(a, b) { return a.k - b.k || (a.i < b.i ? -1 : a.i > b.i ? 1 : 0); }
+
+  function addChunk(ch, remote) {
+    if (seen.has(ch.i)) return;
+    seen.add(ch.i);
+    if (remote) observeKey(ch.k);
+    let lo = 0, hi = chunks.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (cmp(chunks[m], ch) < 0) lo = m + 1; else hi = m; }
+    chunks.splice(lo, 0, ch);
+    if (lo < committed) rollback(lo);
+  }
+  function rollback(idx) {
+    while (checkpoints.length && checkpoints[checkpoints.length - 1].idx > idx) checkpoints.pop();
+    const cp = checkpoints[checkpoints.length - 1];
+    balls = cp ? cp.balls.slice() : [];
+    committed = cp ? cp.idx : 0;
+    rebuildGrid();
+    anims.clear();
+  }
+  function commit() {
+    const now = logicalNow();
+    const limit = now - HORIZON;
+    while (committed < chunks.length && chunks[committed].k <= limit) {
+      const ch = chunks[committed];
+      const fresh = !everCommitted.has(ch.i) && ch.k > now - 5000;
+      everCommitted.add(ch.i);
+      const path = fresh ? [] : null;
+      const kept = settle(ch, path);
+      if (fresh) anims.set(ch.i, { path, t0: performance.now(), kept, c: ch.c });
+      committed++;
+      if (committed % CHECKPOINT_EVERY === 0) {
+        checkpoints.push({ idx: committed, balls: balls.slice() });
+        if (checkpoints.length > 40) checkpoints.shift();
+      }
+    }
+  }
+  function resetLog() {
+    chunks = []; seen = new Set(); committed = 0; checkpoints = [];
+    everCommitted = new Set(); balls = []; anims.clear(); rebuildGrid();
+  }
+
+  function valid(c) {
+    if (!c || typeof c !== 'object') return null;
+    const { i, k, s, p } = c, col = c.c, r = c.r, l = c.l;
+    if (typeof i !== 'string' || i.length > 64) return null;
+    if (!Number.isFinite(k) || k < 0) return null;
+    if (!Number.isInteger(col) || col < 0 || col >= MOODS.length) return null;
+    if (!Number.isInteger(r) || r < 1 || r > 14) return null;
+    if (!Number.isInteger(s) || s < 0 || s > 4294967295) return null;
+    if (l !== 0 && l !== 1) return null;
+    if (!Array.isArray(p) || p.length !== 2) return null;
+    const [x, y] = p;
+    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= GW || y < 0 || y >= GH) return null;
+    return { i, k, c: col, r, s, l, p: [x, y] };
+  }
+
+  // ---- dropping (multi-touch, hold to repeat) ----
+  const holds = new Map();
+  let canPour = true;
+  function dropAt(x, y) {
+    const ch = { i: session + ':' + (seq++), k: nextKey(), c: mood, r: R, s: (Math.random() * 4294967296) >>> 0, l: 0, p: [x, y] };
+    addChunk(ch, false);
+    send(ch);
+  }
+  function toWorld(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.round((e.clientX - rect.left) / rect.width * GW);
+    const y = Math.round((e.clientY - rect.top) / rect.height * GH);
+    return [Math.min(GW - 1, Math.max(0, x)), Math.min(GH - 1, Math.max(0, y))];
+  }
+  canvas.addEventListener('pointerdown', e => {
+    if (mode !== 'play' || !canPour) return;
+    e.preventDefault();
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    const [x, y] = toWorld(e);
+    holds.set(e.pointerId, { x, y, last: performance.now() });
+    dropAt(x, y);
+  });
+  canvas.addEventListener('pointermove', e => {
+    const h = holds.get(e.pointerId);
+    if (h) [h.x, h.y] = toWorld(e);
+  });
+  const release = e => holds.delete(e.pointerId);
+  canvas.addEventListener('pointerup', release);
+  canvas.addEventListener('pointercancel', release);
+  function endStrokes() { holds.clear(); }
+
+  // ---- faces (shared by the picker and the marbles) ----
+  function faceSvg(kind, ink) {
+    const P = '#1d1b26';
+    const line = 'fill="none" stroke="' + ink + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"';
+    const eyes = (r, ry, dx, dy, pr) =>
+      '<ellipse cx="17" cy="17" rx="' + r + '" ry="' + ry + '" fill="#fff"/>' +
+      '<ellipse cx="31" cy="17" rx="' + r + '" ry="' + ry + '" fill="#fff"/>' +
+      '<circle cx="' + (17 + dx) + '" cy="' + (17 + dy) + '" r="' + pr + '" fill="' + P + '"/>' +
+      '<circle cx="' + (31 + dx) + '" cy="' + (17 + dy) + '" r="' + pr + '" fill="' + P + '"/>';
+    const lids = c => '<path d="M11.5 17 A5.5 5.5 0 0 1 22.5 17 Z M25.5 17 A5.5 5.5 0 0 1 36.5 17 Z" fill="' + c + '"/>';
+    const f = {
+      joy: eyes(5, 5.5, 0, 0, 2.4) +
+        '<path d="M14 25 Q24 37 34 25 Z" fill="' + ink + '"/>',
+      sadness: eyes(5, 5, 0, 1.6, 2.2) +
+        '<path d="M11 10 L20 7 M28 7 L37 10 M18 32 Q24 27 30 32" ' + line + '/>' +
+        '<path d="M13 24 q-1.6 3 0 4 q1.6 -1 0 -4 Z" fill="#fff" opacity="0.85"/>',
+      anger: eyes(5.5, 3.6, 0, 0.6, 2.2) +
+        '<path d="M10 8 L21 13 M27 13 L38 8" ' + line + '/>' +
+        '<rect x="15" y="25.5" width="18" height="6" rx="1.5" fill="#fff" stroke="' + ink + '" stroke-width="2"/>' +
+        '<path d="M15 28.5 H33 M21 25.5 V31.5 M27 25.5 V31.5" fill="none" stroke="' + ink + '" stroke-width="1.4"/>',
+      fear: eyes(6.5, 6.5, 0, -0.5, 1.8) +
+        '<path d="M10 7 Q14 3 20 6 M28 6 Q34 3 38 7 M17 32 q2 -2.5 3.5 0 t3.5 0 t3.5 0 t3.5 0" ' + line + '/>',
+      disgust: eyes(5, 4, 1.4, 0.6, 2) +
+        '<path d="M11 10 H20 M28 9 Q32 4.5 37 8.5 M17 30 Q21 26.5 24.5 29.5 Q28.5 32.5 32 27.5" ' + line + '/>',
+      anxiety: eyes(6, 6.2, 0, 0, 2.3) +
+        '<path d="M10 8 q3 -3 5 -1 t5 -1 M28 6 q3 -2 5 1 t5 1" ' + line + '/>' +
+        '<rect x="12" y="24" width="24" height="10" rx="5" fill="' + ink + '"/>' +
+        '<path d="M15 24.5 h18 v3 h-18 Z" fill="#fff"/>',
+      embarrassment: eyes(5, 5, 0, 2.6, 2.2) +
+        '<circle cx="9" cy="26" r="4" fill="#fff" opacity="0.35"/><circle cx="39" cy="26" r="4" fill="#fff" opacity="0.35"/>' +
+        '<path d="M11 11 L19 9 M29 9 L37 11 M20 31 q2 -1.5 4 0 t4 0" ' + line + '/>',
+      envy: eyes(7, 7.2, 0, 0.5, 4.6) +
+        '<circle cx="15" cy="15" r="1.5" fill="#fff"/><circle cx="29" cy="15" r="1.5" fill="#fff"/>' +
+        '<circle cx="18.5" cy="19.5" r="0.8" fill="#fff"/><circle cx="32.5" cy="19.5" r="0.8" fill="#fff"/>' +
+        '<ellipse cx="24" cy="32" rx="2" ry="2.4" fill="' + ink + '"/>',
+      ennui: eyes(5.5, 4.5, 1.2, 1.2, 2) + lids(MOODS.find(m => m.face === 'ennui').hex) +
+        '<path d="M11.5 17 H22.5 M25.5 17 H36.5 M16 30 H32" ' + line + '/>',
+    };
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 40" aria-hidden="true">' + (f[kind] || '') + '</svg>';
+  }
+
+  // ---- marble picker ----
+  const moodButtons = MOODS.map((m, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mood';
+    btn.id = 'mood-' + m.name.toLowerCase();
+    btn.style.setProperty('--c', m.hex);
+    if (m.name.length > 9) btn.style.setProperty('--fs', '0.5rem');
+    btn.title = m.name + ' (' + (i + 1) + ')';
+    btn.setAttribute('aria-pressed', i === mood ? 'true' : 'false');
+    btn.setAttribute('aria-label', m.name);
+    btn.innerHTML = '<span class="orb">' + faceSvg(m.face, m.ink) + '</span><span class="label">' + m.name + '</span>';
+    btn.addEventListener('click', () => selectMood(i));
+    $('moods').appendChild(btn);
+    return btn;
+  });
+  function selectMood(i) {
+    mood = i;
+    moodButtons.forEach((b, j) => b.setAttribute('aria-pressed', i === j ? 'true' : 'false'));
+  }
+  window.addEventListener('keydown', e => {
+    if (mode !== 'play') return;
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= MOODS.length) selectMood(n - 1);
+  });
+
+  // ---- glowing marble sprites (one per feeling, redrawn on resize) ----
+  const faceImages = MOODS.map(m => {
+    const img = new Image();
+    img.onload = () => buildSprites();
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(faceSvg(m.face, m.ink));
+    return img;
+  });
+  let sprites = [], scale = 1, spriteHalf = 0;
+  function hexRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function mix(rgb, to, t) { return 'rgb(' + rgb.map((v, i) => Math.round(v + (to[i] - v) * t)).join(',') + ')'; }
+  function buildSprites() {
+    const pr = R * scale;                    // marble radius in canvas pixels
+    const glow = pr * 0.8;
+    const size = Math.ceil((pr + glow) * 2);
+    spriteHalf = size / 2;
+    sprites = MOODS.map((m, idx) => {
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const g = c.getContext('2d');
+      const rgb = hexRgb(m.hex);
+      g.translate(size / 2, size / 2);
+      // outer glow
+      g.save();
+      g.shadowColor = 'rgba(' + rgb.join(',') + ',0.8)';
+      g.shadowBlur = glow;
+      g.fillStyle = 'rgba(' + rgb.join(',') + ',0.55)';
+      g.beginPath(); g.arc(0, 0, pr * 0.96, 0, Math.PI * 2); g.fill();
+      g.restore();
+      // glass body: light core, saturated middle, darker rim, slightly see-through
+      g.globalAlpha = 0.9;
+      const body = g.createRadialGradient(-pr * 0.25, -pr * 0.3, pr * 0.05, 0, 0, pr);
+      body.addColorStop(0, mix(rgb, [255, 255, 255], 0.7));
+      body.addColorStop(0.45, m.hex);
+      body.addColorStop(1, mix(rgb, [0, 0, 0], 0.32));
+      g.fillStyle = body;
+      g.beginPath(); g.arc(0, 0, pr, 0, Math.PI * 2); g.fill();
+      // the face, softly inside the glass
+      const img = faceImages[idx];
+      if (img.complete && img.naturalWidth) {
+        g.globalAlpha = 0.6;
+        const w = pr * 1.45, h = w * 40 / 48;
+        g.drawImage(img, -w / 2, -h / 2 + pr * 0.06, w, h);
+      }
+      // rim light and glints
+      g.globalAlpha = 1;
+      g.strokeStyle = 'rgba(255,255,255,0.35)';
+      g.lineWidth = Math.max(1, pr * 0.07);
+      g.beginPath(); g.arc(0, 0, pr * 0.95, 0, Math.PI * 2); g.stroke();
+      g.save();
+      g.rotate(-0.55);
+      const glint = g.createRadialGradient(-pr * 0.05, -pr * 0.55, 0, -pr * 0.05, -pr * 0.55, pr * 0.42);
+      glint.addColorStop(0, 'rgba(255,255,255,0.9)');
+      glint.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = glint;
+      g.beginPath(); g.ellipse(-pr * 0.05, -pr * 0.55, pr * 0.42, pr * 0.24, 0, 0, Math.PI * 2); g.fill();
+      g.restore();
+      g.fillStyle = 'rgba(255,255,255,0.3)';
+      g.beginPath(); g.arc(pr * 0.42, pr * 0.48, pr * 0.1, 0, Math.PI * 2); g.fill();
+      return c;
+    });
+  }
+
+  // ---- sharing (Firebase Realtime Database, no sign-in) ----
+  // Drops live beside the sand at pours/m<gen>, so Start fresh clears both.
+  const cfg = window.SANDFALL_CONFIG || {};
+  const fbConfig = cfg.firebase || {};
+  const configured = !!(window.firebase && fbConfig.databaseURL && !/your-project/i.test(fbConfig.databaseURL));
+  let fdb = null;
+  let canWrite = true, connected = false;
+  let poursQuery = null, screens = [];
+  let stateGen = 'g0';
+
+  function send(ch) {
+    if (!fdb || !canWrite || gen === 'local' || gen === 'solo') return;
+    fdb.ref('pours/' + gen + '/' + ch.i)
+      .set({ i: ch.i, k: ch.k, c: ch.c, r: ch.r, s: ch.s, l: ch.l, p: ch.p.join(',') })
+      .catch(e => {
+        if (/permission/i.test((e && (e.code || e.message)) || '')) {
+          canWrite = false;
+          canPour = false;
+          endStrokes();
+          showNotice("This screen can't add memories right now. Check the database rules in the setup guide.");
+        }
+      });
+  }
+
+  function setGen(g) {
+    endStrokes();
+    gen = g;
+    resetLog();
+    if (poursQuery) poursQuery.off();
+    const myGen = g;
+    poursQuery = fdb.ref('pours/' + g).orderByChild('k');
+    poursQuery.on('child_added', snap => {
+      if (myGen !== gen) return;
+      const raw = snap.val();
+      if (!raw || typeof raw.p !== 'string') return;
+      raw.p = raw.p.split(',').map(Number);
+      const ch = valid(raw);
+      if (ch) addChunk(ch, true);
+    }, () => showNotice('Could not read the shared memories. Check the database rules in the setup guide.'));
+  }
+
+  function showNotice(text) {
+    const n = $('notice');
+    n.textContent = text;
+    n.hidden = !text;
+  }
+
+  function renderStatus() {
+    const el = $('status'), txt = $('statusText');
+    el.classList.toggle('live', !!fdb && connected);
+    if (!fdb) { txt.textContent = gen === 'local' ? 'Connecting…' : 'This screen only'; return; }
+    if (!connected) { txt.textContent = 'Connecting…'; return; }
+    const mine = screens.filter(s => s && (s.mode === 'mplay' || s.mode === 'mdisplay'));
+    const tablets = mine.filter(s => s.mode === 'mplay').length;
+    if (mode === 'display') txt.textContent = 'Live · ' + tablets + (tablets === 1 ? ' tablet' : ' tablets');
+    else txt.textContent = 'Live · ' + mine.length + (mine.length === 1 ? ' screen' : ' screens');
+  }
+
+  const presenceMode = () => (mode === 'display' ? 'mdisplay' : 'mplay');
+
+  function connect() {
+    if (!configured) {
+      gen = 'solo';
+      showNotice('Sharing is off: add your Firebase settings to config.js to link screens together.');
+      renderStatus();
+      return;
+    }
+    try {
+      firebase.initializeApp(fbConfig);
+      fdb = firebase.database();
+    } catch (e) {
+      fdb = null; gen = 'solo';
+      showNotice('Firebase settings in config.js could not be read. Copy them again from the Firebase console.');
+      renderStatus();
+      return;
+    }
+    fdb.ref('.info/serverTimeOffset').on('value', s => { clockOffset = Number(s.val()) || 0; });
+    fdb.ref('.info/connected').on('value', s => {
+      connected = !!s.val();
+      if (connected) {
+        const me = fdb.ref('screens/' + session);
+        me.onDisconnect().remove();
+        me.set({ mode: presenceMode() }).catch(() => {});
+      }
+      renderStatus();
+    });
+    fdb.ref('screens').on('value', s => {
+      const v = s.val();
+      screens = v && typeof v === 'object' ? Object.values(v) : [];
+      renderStatus();
+    }, () => {});
+    fdb.ref('state/gen').on('value', s => {
+      const v = s.val();
+      stateGen = typeof v === 'string' && /^[a-z0-9]{1,24}$/i.test(v) ? v : 'g0';
+      const g = 'm' + stateGen;
+      if (g !== gen) setGen(g);
+    }, () => showNotice('Could not connect to the shared memories. Check the database rules in the setup guide.'));
+  }
+
+  // ---- teacher controls (display) ----
+  let armTimer = 0;
+  $('fresh').addEventListener('click', async () => {
+    const btn = $('fresh');
+    if (!btn.classList.contains('armed')) {
+      btn.classList.add('armed');
+      btn.textContent = 'Tap again to clear everything';
+      clearTimeout(armTimer);
+      armTimer = setTimeout(() => { btn.classList.remove('armed'); btn.textContent = 'Start fresh'; }, 4000);
+      return;
+    }
+    clearTimeout(armTimer);
+    btn.classList.remove('armed');
+    btn.textContent = 'Start fresh';
+    if (!fdb) { resetLog(); return; }
+    if (!teacherCode) {
+      showNotice('Add your teacher code to the address: …/memories.html#teacher-YOURCODE');
+      return;
+    }
+    const oldSand = stateGen, g = 'g' + Date.now().toString(36);
+    try {
+      await fdb.ref('state').set({ gen: g, key: teacherCode });
+      showNotice('');
+      fdb.ref('pours/m' + oldSand).remove().catch(() => {});
+      fdb.ref('pours/' + oldSand).remove().catch(() => {});
+    } catch (_) {
+      showNotice("Could not start fresh. Check that the code in this address matches the one in your database rules.");
+    }
+  });
+  $('fs').addEventListener('click', () => {
+    const el = document.documentElement;
+    if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); return; }
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => { $('fs').hidden = true; });
+    else $('fs').hidden = true;
+  });
+
+  // ---- modes ----
+  // #play (or no hash): marbles + dropping
+  // #display: the memories only
+  // #teacher-CODE: the display plus Start fresh
+  let teacherCode = '';
+  function applyMode() {
+    let h = '';
+    try { h = decodeURIComponent(location.hash.slice(1)); } catch (_) {}
+    const t = /^teacher(?:-([A-Za-z0-9_-]{1,64}))?$/.exec(h);
+    teacherCode = t && t[1] ? t[1] : '';
+    mode = t || h === 'display' ? 'display' : 'play';
+    document.body.dataset.mode = mode;
+    $('dock').hidden = mode !== 'play';
+    $('foot').hidden = mode !== 'display';
+    $('fresh').hidden = !t;
+    if (mode === 'display') {
+      endStrokes();
+      $('hint').innerHTML = t ? 'Classroom display · teacher' : 'Classroom display';
+      $('emptyText').textContent = 'Waiting for memories. Open the play link on a tablet and tap to drop one.';
+    } else {
+      canPour = canWrite;
+      $('hint').innerHTML = 'Pick a feeling, then tap to drop a memory.<span class="hint-wide"> Hold to keep dropping.</span>';
+      $('emptyText').textContent = 'Pick a feeling below, then tap anywhere in the box.';
+    }
+    if (fdb && connected) fdb.ref('screens/' + session).set({ mode: presenceMode() }).catch(() => {});
+    renderStatus();
+  }
+  window.addEventListener('hashchange', applyMode);
+
+  // ---- layout + render ----
+  function fit() {
+    const r = box.getBoundingClientRect();
+    const s = Math.max(0.1, Math.min(r.width / GW, r.height / GH));
+    const cssW = Math.floor(GW * s), cssH = Math.floor(GH * s);
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(cssW * dpr));
+    canvas.height = Math.max(1, Math.round(cssH * dpr));
+    scale = canvas.width / GW;
+    buildSprites();
+  }
+  new ResizeObserver(fit).observe(box);
+
+  function drawMarble(c, x, y, alpha, size) {
+    const spr = sprites[c];
+    if (!spr) return;
+    const h = spriteHalf * (size || 1);
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(spr, x * scale - h, y * scale - h, h * 2, h * 2);
+  }
+
+  let lastCount = -1, lastEmpty = null;
+  function render(now) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // settled marbles (skipping ones still on their way down)
+    for (const b of balls) if (!anims.has(b.i)) drawMarble(b.c, b.x, b.y, 1);
+    // marbles falling along their computed path
+    for (const [id, a] of anims) {
+      const n = a.path.length / 2;
+      const f = Math.floor((now - a.t0) / STEP_MS);
+      if (f >= n) {
+        if (!a.kept && f < n + 30) { drawMarble(a.c, a.path[a.path.length - 2], a.path[a.path.length - 1], 1 - (f - n) / 30); continue; }
+        anims.delete(id);
+        if (a.kept) { const b = balls.find(x => x.i === id); if (b) drawMarble(b.c, b.x, b.y, 1); }
+        continue;
+      }
+      drawMarble(a.c, a.path[f * 2], a.path[f * 2 + 1], 1);
+    }
+    // memories forming where they were tapped, before they drop
+    const ln = logicalNow();
+    for (let j = committed; j < chunks.length; j++) {
+      const ch = chunks[j];
+      const t = Math.max(0, Math.min(1, (ln - ch.k) / HORIZON));
+      drawMarble(ch.c, ch.p[0], Math.min(GH - R, Math.max(R, ch.p[1])), 0.25 + 0.6 * t, 0.35 + 0.65 * t);
+    }
+    ctx.globalAlpha = 1;
+    const count = balls.length;
+    if (count !== lastCount) {
+      lastCount = count;
+      const t = count.toLocaleString() + (count === 1 ? ' memory' : ' memories');
+      $('count').textContent = t;
+      $('dcount').textContent = t;
+    }
+    const empty = count === 0 && anims.size === 0 && committed === chunks.length;
+    if (empty !== lastEmpty) { lastEmpty = empty; $('empty').hidden = !empty; }
+  }
+
+  function tick() {
+    const now = performance.now();
+    for (const h of holds.values()) {
+      if (now - h.last >= REPEAT_MS) { h.last = now; dropAt(h.x, h.y); }
+    }
+    commit();
+    render(now);
+    requestAnimationFrame(tick);
+  }
+
+  applyMode();
+  fit();
+  requestAnimationFrame(tick);
+  connect();
+})();
+</script>
+
+</body>
+</html>

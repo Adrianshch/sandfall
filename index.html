@@ -777,6 +777,7 @@
       await fdb.ref('state').set({ gen: g, key: teacherCode });
       showNotice('');
       fdb.ref('pours/' + old).remove().catch(() => {});
+      fdb.ref('pours/m' + old).remove().catch(() => {});   // memories experiment shares Start fresh
     } catch (_) {
       showNotice("Could not start fresh. Check that the code in this address matches the one in your database rules.");
     }
