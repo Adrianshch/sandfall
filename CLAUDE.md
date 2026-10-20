@@ -6,6 +6,9 @@ Shared classroom falling-sand game, hosted on GitHub Pages and synced through Fi
 
 The `main` branch is the website. GitHub Pages republishes it within a minute or two of every push.
 
+- Repo: https://github.com/Adrianshch/sandfall
+- Site: https://adrianshch.github.io/sandfall/ (`#play`, `#display`, `#teacher-CODE`)
+
 After a change the user asked for: check it, commit with a short message, then `git push`. Then tell the user the site will update in a minute or two at the GitHub Pages address.
 
 ## Files
