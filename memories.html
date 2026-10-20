@@ -171,7 +171,7 @@
   }
   .moods {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 84px));
+    grid-template-columns: repeat(6, minmax(0, 90px));
     gap: 6px;
     align-items: start;
   }
@@ -191,8 +191,8 @@
   /* Each picker marble is drawn on a canvas (same look as the falling ones); CSS adds the glow. */
   .orb {
     display: block;
-    width: 64px;
-    height: 64px;
+    width: 72px;
+    height: 72px;
     border-radius: 50%;
     box-shadow: 0 0 14px 2px color-mix(in srgb, var(--c) 55%, transparent);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -216,15 +216,15 @@
     position: relative;
     display: grid;
     place-items: center;
-    width: 64px;
-    height: 64px;
+    width: 72px;
+    height: 72px;
     border-radius: 50%;
     box-sizing: border-box;
     border: 2px dashed var(--muted);
     transition: transform 0.15s ease;
   }
   .more .plus { font: 600 1.9rem/1 var(--font-display); color: var(--muted); }
-  .more .ring .orb { position: absolute; inset: -2px; width: 64px; height: 64px; }
+  .more .ring .orb { position: absolute; inset: -2px; width: 72px; height: 72px; }
   .more[aria-pressed="true"] .ring { border-color: transparent; }
   .more[aria-pressed="true"] .orb { transform: translateY(-3px) scale(1.12); box-shadow: 0 0 26px 8px color-mix(in srgb, var(--c) 75%, transparent); }
   .more:hover .ring { transform: translateY(-2px); }
@@ -279,7 +279,7 @@
     gap: 14px 8px;
     padding: 8px 16px 24px;
   }
-  .panel-list .orb { width: 84px; height: 84px; }
+  .panel-list .orb { width: 96px; height: 96px; }
   .panel-list .label { font-size: 0.78rem; }
 
   .count {
@@ -317,7 +317,7 @@
   @media (max-width: 760px) {
     .dock { width: 100%; }
     .moods { grid-template-columns: repeat(6, minmax(0, 1fr)); width: 100%; gap: 2px; }
-    .moods .orb, .more .ring, .more .ring .orb { width: 48px; height: 48px; }
+    .moods .orb, .more .ring, .more .ring .orb { width: 54px; height: 54px; }
     .moods .label { font-size: 0.56rem; }
   }
   @media (max-width: 480px) {
@@ -378,7 +378,7 @@
   // A drop is a tap position plus a seed. Settling a marble uses only that seed
   // and plain arithmetic (+ - * / sqrt), so all screens agree to the last digit.
   const GW = 480, GH = 300;      // shared world, in world units
-  const R = 16;                  // marble radius
+  const R = 18;                  // marble radius
   const D = R * 2, D2 = D * D;
   const G = 0.25;                // gravity per step (one step = 1/60 s)
   const VMAX = 9;
@@ -393,7 +393,7 @@
   // Cat memories. The array index is what drops store, so existing entries keep their
   // place and new ones go on the end.
   const MOODS = [
-    { name: 'Curious',  hex: '#ff7a59', img: 'images/cat-happy.webp' },
+    { name: 'Curious',  hex: '#ff7a59', img: 'images/cat-curious.webp' },
     { name: 'Angry',    hex: '#f92d35', img: 'images/cat-angry.webp' },
     { name: 'Sad',      hex: '#3d7cc9', img: 'images/cat-sad.webp' },
     { name: 'Happy',    hex: '#ffc21a', img: 'images/cat-happy2.webp' },
@@ -404,9 +404,12 @@
     { name: 'Hungry',   hex: '#f15bb5', img: 'images/cat-hungry.webp' },
     { name: 'Silly',    hex: '#90be6d', img: 'images/cat-silly.webp' },
     { name: 'Upset',    hex: '#577590', img: 'images/cat-upset.webp' },
+    { name: 'Bored',    hex: '#b5838d', img: 'images/cat-bored.webp' },
+    { name: 'Surprised', hex: '#06d6a0', img: 'images/cat-surprised.webp' },
+    { name: 'Playful',  hex: '#4cc9f0', img: 'images/cat-playful.webp' },
   ];
   const PICKER = [3, 2, 4, 6, 5];          // main row: Happy, Sad, Scared, Confused, Calm
-  const MORE = [1, 7, 0, 8, 9, 10];        // side panel: the rest
+  const MORE = [1, 7, 0, 12, 11, 8, 9, 13, 10];   // side panel: the rest
 
   const $ = id => document.getElementById(id);
   const canvas = $('world'), ctx = canvas.getContext('2d');
@@ -680,7 +683,7 @@
     const m = MOODS[idx], rgb = hexRgb(m.hex), img = catImages[idx];
     if (glow) {
       g.save();
-      g.shadowColor = 'rgba(' + rgb.join(',') + ',0.85)';
+      g.shadowColor = 'rgba(' + rgb.join(',') + ',0.7)';
       g.shadowBlur = glow;
       g.fillStyle = 'rgba(' + rgb.join(',') + ',0.6)';
       g.beginPath(); g.arc(0, 0, pr * 0.96, 0, Math.PI * 2); g.fill();
@@ -709,47 +712,47 @@
     if (img.complete && img.naturalWidth) {
       if ('filter' in g) g.filter = 'blur(' + Math.max(0.25, pr * 0.012).toFixed(2) + 'px)';
       g.globalAlpha = 1;
-      g.drawImage(img, -pr * 1.04, -pr * 1.04, pr * 2.08, pr * 2.08);
+      g.drawImage(img, -pr, -pr, pr * 2, pr * 2);
       if ('filter' in g) g.filter = 'none';
     }
     // tint: a wash of the feeling's colour over the memory
-    g.globalAlpha = 0.22;
+    g.globalAlpha = 0.13;
     g.globalCompositeOperation = 'multiply';
     g.fillStyle = m.hex;
     g.fillRect(-pr, -pr, pr * 2, pr * 2);
     g.globalCompositeOperation = 'screen';
-    g.globalAlpha = 0.1;
+    g.globalAlpha = 0.06;
     g.fillRect(-pr, -pr, pr * 2, pr * 2);
     g.globalCompositeOperation = 'source-over';
     // glass depth: clear in the middle, coloured and darker toward the edge
     g.globalAlpha = 1;
     const depth = g.createRadialGradient(-pr * 0.1, -pr * 0.15, pr * 0.55, 0, 0, pr);
     depth.addColorStop(0, 'rgba(' + rgb.join(',') + ',0)');
-    depth.addColorStop(0.75, 'rgba(' + rgb.join(',') + ',0.25)');
-    depth.addColorStop(1, mix(rgb, [0, 0, 0], 0.35).replace('rgb', 'rgba').replace(')', ',0.7)'));
+    depth.addColorStop(0.75, 'rgba(' + rgb.join(',') + ',0.12)');
+    depth.addColorStop(1, mix(rgb, [0, 0, 0], 0.3).replace('rgb', 'rgba').replace(')', ',0.45)'));
     g.fillStyle = depth;
     g.fillRect(-pr, -pr, pr * 2, pr * 2);
     // a soft haze across the top, like light inside the glass
     const haze = g.createLinearGradient(0, -pr, 0, pr * 0.2);
-    haze.addColorStop(0, 'rgba(255,255,255,0.18)');
+    haze.addColorStop(0, 'rgba(255,255,255,0.1)');
     haze.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = haze;
     g.fillRect(-pr, -pr, pr * 2, pr * 2);
     g.restore();
     }
     // rim light and glints
-    g.strokeStyle = 'rgba(255,255,255,0.4)';
+    g.strokeStyle = 'rgba(255,255,255,0.28)';
     g.lineWidth = Math.max(1, pr * 0.06);
     g.beginPath(); g.arc(0, 0, pr * 0.96, 0, Math.PI * 2); g.stroke();
     g.save();
     g.rotate(-0.55);
     const glint = g.createRadialGradient(-pr * 0.05, -pr * 0.66, 0, -pr * 0.05, -pr * 0.66, pr * 0.34);
-    glint.addColorStop(0, 'rgba(255,255,255,0.8)');
+    glint.addColorStop(0, 'rgba(255,255,255,0.55)');
     glint.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = glint;
     g.beginPath(); g.ellipse(-pr * 0.05, -pr * 0.66, pr * 0.34, pr * 0.16, 0, 0, Math.PI * 2); g.fill();
     g.restore();
-    g.fillStyle = 'rgba(255,255,255,0.35)';
+    g.fillStyle = 'rgba(255,255,255,0.22)';
     g.beginPath(); g.arc(pr * 0.45, pr * 0.5, pr * 0.09, 0, Math.PI * 2); g.fill();
   }
 
