@@ -4,11 +4,13 @@ window.SANDFALL_CONFIG = {
   // Paste the firebaseConfig object from Firebase console > Project settings > Your apps.
   // It must include databaseURL (it appears after you create the Realtime Database).
   firebase: {
-    apiKey: "PASTE_API_KEY",
-    authDomain: "your-project.firebaseapp.com",
-    databaseURL: "https://your-project-default-rtdb.firebaseio.com",
-    projectId: "your-project",
-    appId: "PASTE_APP_ID"
+    apiKey: "AIzaSyDg5eFtoifPZi0scWL8ihrlql9xbu21KMk",
+    authDomain: "sandfall-121cf.firebaseapp.com",
+    databaseURL: "https://sandfall-121cf-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "sandfall-121cf",
+    storageBucket: "sandfall-121cf.firebasestorage.app",
+    messagingSenderId: "432872569416",
+    appId: "1:432872569416:web:b3ce73848b61b67b5b767d"
   }
 };
 
