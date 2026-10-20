@@ -804,8 +804,8 @@
     return img;
   });
 
-  // Draws one marble centred at (0, 0) with radius pr. Cat marbles: the photo inside the glass,
-  // softened and tinted, darker toward the rim. Drawn marbles: a glowing glass body with the face inside.
+  // Draws one marble centred at (0, 0) with radius pr. Cat marbles: the cut-out cat inside the glass
+  // on a light wash of its family colour, a little deeper toward the rim. Drawn marbles: a glowing glass body with the face inside.
   // Both finish with a rim light and glints.
   function paintMarble(g, idx, pr, glow) {
     const m = MOODS[idx], rgb = hexRgb(m.hex), img = catImages[idx];
@@ -835,7 +835,11 @@
     } else {
     g.save();
     g.beginPath(); g.arc(0, 0, pr, 0, Math.PI * 2); g.clip();
-    g.fillStyle = mix(rgb, [255, 255, 255], 0.55);
+    // light family colour behind the cut-out cat: palest in the middle, a little deeper at the rim
+    const back = g.createRadialGradient(0, -pr * 0.1, pr * 0.1, 0, 0, pr);
+    back.addColorStop(0, mix(rgb, [255, 255, 255], 0.82));
+    back.addColorStop(1, mix(rgb, [255, 255, 255], 0.55));
+    g.fillStyle = back;
     g.fillRect(-pr, -pr, pr * 2, pr * 2);
     if (img.complete && img.naturalWidth) {
       if ('filter' in g) g.filter = 'blur(' + Math.max(0.25, pr * 0.012).toFixed(2) + 'px)';
@@ -843,15 +847,6 @@
       g.drawImage(img, -pr, -pr, pr * 2, pr * 2);
       if ('filter' in g) g.filter = 'none';
     }
-    // tint: a wash of the feeling's colour over the memory
-    g.globalAlpha = 0.13;
-    g.globalCompositeOperation = 'multiply';
-    g.fillStyle = m.hex;
-    g.fillRect(-pr, -pr, pr * 2, pr * 2);
-    g.globalCompositeOperation = 'screen';
-    g.globalAlpha = 0.06;
-    g.fillRect(-pr, -pr, pr * 2, pr * 2);
-    g.globalCompositeOperation = 'source-over';
     // glass depth: clear in the middle, coloured and darker toward the edge
     g.globalAlpha = 1;
     const depth = g.createRadialGradient(-pr * 0.1, -pr * 0.15, pr * 0.55, 0, 0, pr);
