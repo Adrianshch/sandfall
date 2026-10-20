@@ -173,6 +173,7 @@
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 84px));
     gap: 6px;
+    align-items: start;
   }
   .mood {
     display: flex;
@@ -210,6 +211,77 @@
   }
   .mood[aria-pressed="true"] .label { color: var(--ink); }
   .mood:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* More: a dashed ring with a plus, or the chosen side-panel marble */
+  .more .ring {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    box-sizing: border-box;
+    border: 2px dashed var(--muted);
+    transition: transform 0.15s ease;
+  }
+  .more .plus { font: 600 1.9rem/1 var(--font-display); color: var(--muted); }
+  .more .ring .orb { position: absolute; inset: -2px; width: 64px; height: 64px; }
+  .more[aria-pressed="true"] .ring { border-color: transparent; }
+  .more[aria-pressed="true"] .orb { transform: translateY(-3px) scale(1.12); box-shadow: 0 0 26px 8px color-mix(in srgb, var(--c) 75%, transparent); }
+  .more:hover .ring { transform: translateY(-2px); }
+
+  .scrim { position: fixed; inset: 0; z-index: 20; background: rgba(10, 14, 20, 0.28); }
+  .panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 21;
+    width: min(300px, 84vw);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    box-shadow: -12px 0 30px rgba(0, 0, 0, 0.22);
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    transform: translateX(105%);
+    visibility: hidden;
+    transition: transform 0.25s ease, visibility 0.25s;
+  }
+  .panel.open { transform: none; visibility: visible; }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 16px 8px;
+  }
+  .panel-head h2 { margin: 0; font: 700 1.15rem var(--font-display); }
+  .close {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    font: 400 1.5rem/1 var(--font-body);
+    cursor: pointer;
+  }
+  .close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .panel-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 14px 8px;
+    padding: 8px 16px 24px;
+  }
+  .panel-list .orb { width: 84px; height: 84px; }
+  .panel-list .label { font-size: 0.78rem; }
+
   .count {
     font-size: 0.75rem;
     color: var(--muted);
@@ -244,15 +316,16 @@
 
   @media (max-width: 760px) {
     .dock { width: 100%; }
-    .moods { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto auto; grid-auto-flow: column; }
-    .orb { width: 56px; height: 56px; }
+    .moods { grid-template-columns: repeat(6, minmax(0, 1fr)); width: 100%; gap: 2px; }
+    .moods .orb, .more .ring, .more .ring .orb { width: 48px; height: 48px; }
+    .moods .label { font-size: 0.56rem; }
   }
   @media (max-width: 480px) {
     .mark h1 { font-size: 1.25rem; }
     .hint-wide { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .orb, .teacher { transition: none; }
+    .orb, .teacher, .panel, .more .ring { transition: none; }
   }
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -290,6 +363,15 @@
   </footer>
 </div>
 
+<div class="scrim" id="scrim" hidden></div>
+<aside class="panel" id="panel" aria-label="More cat memories" aria-hidden="true">
+  <div class="panel-head">
+    <h2>More memories</h2>
+    <button class="close" id="closeMore" type="button" aria-label="Close">&times;</button>
+  </div>
+  <div class="panel-list" id="moreList" role="group" aria-label="More cat memories"></div>
+</aside>
+
 <script>
 (() => {
   // Every screen rebuilds the same pile from the same ordered list of drops.
@@ -308,18 +390,23 @@
   const CHECKPOINT_EVERY = 25;
   const STEP_MS = 1000 / 60;
 
-  // Three emotions, each as a cat memory and as a drawn-face marble.
-  // The array index is what drops store, so the cats keep 0-2 and new entries go on the end.
+  // Cat memories. The array index is what drops store, so existing entries keep their
+  // place and new ones go on the end. Confused is a drawn face until a photo is added.
   const MOODS = [
-    { name: 'Happy',   hex: '#fbe92d', img: 'images/cat-happy.webp' },
-    { name: 'Angry',   hex: '#f92d35', img: 'images/cat-angry.webp' },
-    { name: 'Sad',     hex: '#3d7cc9', img: 'images/cat-sad.webp' },
-    { name: 'Joy',     hex: '#fbe92d', ink: '#6b5c00', face: 'joy' },
-    { name: 'Anger',   hex: '#f92d35', ink: '#7e0b10', face: 'anger' },
-    { name: 'Sadness', hex: '#19559c', ink: '#a9c4ec', face: 'sadness' },
+    { name: 'Curious',  hex: '#ff7a59', img: 'images/cat-happy.webp' },
+    { name: 'Angry',    hex: '#f92d35', img: 'images/cat-angry.webp' },
+    { name: 'Sad',      hex: '#3d7cc9', img: 'images/cat-sad.webp' },
+    { name: 'Happy',    hex: '#ffc21a', img: 'images/cat-happy2.webp' },
+    { name: 'Scared',   hex: '#9b5de5', img: 'images/cat-scared.webp' },
+    { name: 'Calm',     hex: '#43aa8b', img: 'images/cat-calm.webp' },
+    { name: 'Confused', hex: '#00b4c6', ink: '#0b4f57', face: 'confused' },
+    { name: 'Excited',  hex: '#f3722c', img: 'images/cat-excited.webp' },
+    { name: 'Hungry',   hex: '#f15bb5', img: 'images/cat-hungry.webp' },
+    { name: 'Silly',    hex: '#90be6d', img: 'images/cat-silly.webp' },
+    { name: 'Upset',    hex: '#577590', img: 'images/cat-upset.webp' },
   ];
-  // Picker order: each emotion's drawn marble, then its cat.
-  const PICKER = [3, 0, 4, 1, 5, 2];
+  const PICKER = [3, 2, 4, 6, 5];          // main row: Happy, Sad, Scared, Confused, Calm
+  const MORE = [1, 7, 0, 8, 9, 10];        // side panel: the rest
 
   const $ = id => document.getElementById(id);
   const canvas = $('world'), ctx = canvas.getContext('2d');
@@ -328,7 +415,7 @@
   const session = Math.random().toString(36).slice(2, 10);
   let seq = 0;
   let mode = 'play';
-  let mood = 3;                  // Joy
+  let mood = 3;                  // Happy
 
   function rng32(a) {
     return function () {
@@ -556,6 +643,8 @@
         '<path d="M10 8 L21 13 M27 13 L38 8" ' + line + '/>' +
         '<rect x="15" y="25.5" width="18" height="6" rx="1.5" fill="#fff" stroke="' + ink + '" stroke-width="2"/>' +
         '<path d="M15 28.5 H33 M21 25.5 V31.5 M27 25.5 V31.5" fill="none" stroke="' + ink + '" stroke-width="1.4"/>',
+      confused: eyes(5, 5.5, -1.3, -1.6, 2.3) +
+        '<path d="M10 10 Q14 3.5 20 6.5 M28 11 L37 9 M17 31 Q20.5 27.5 24 30 T31 28" ' + line + '/>',
       fear: eyes(6.5, 6.5, 0, -0.5, 1.8) +
         '<path d="M10 7 Q14 3 20 6 M28 6 Q34 3 38 7 M17 32 q2 -2.5 3.5 0 t3.5 0 t3.5 0 t3.5 0" ' + line + '/>',
       disgust: eyes(5, 4, 1.4, 0.6, 2) +
@@ -664,42 +753,88 @@
     g.beginPath(); g.arc(pr * 0.45, pr * 0.5, pr * 0.09, 0, Math.PI * 2); g.fill();
   }
 
-  // ---- picker ----
+  // ---- picker: five main marbles, plus a More button that opens a side panel ----
   const moodButtons = [];
-  PICKER.forEach((i, pos) => {
+  function makeMoodButton(i, parent, key) {
     const m = MOODS[i];
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'mood';
     btn.id = 'mood-' + m.name.toLowerCase();
     btn.style.setProperty('--c', m.hex);
-    btn.title = m.name + ' (' + (pos + 1) + ')';
+    btn.title = m.name + (key ? ' (' + key + ')' : '');
     btn.dataset.mood = i;
     btn.setAttribute('aria-pressed', i === mood ? 'true' : 'false');
     btn.setAttribute('aria-label', m.name);
     btn.innerHTML = '<canvas class="orb" width="128" height="128"></canvas><span class="label">' + m.name + '</span>';
-    btn.addEventListener('click', () => selectMood(i));
-    $('moods').appendChild(btn);
+    btn.addEventListener('click', () => { selectMood(i); closeMore(); });
+    parent.appendChild(btn);
     moodButtons.push(btn);
-  });
+  }
+  PICKER.forEach((i, pos) => makeMoodButton(i, $('moods'), pos + 1));
+  const moreBtn = document.createElement('button');
+  moreBtn.type = 'button';
+  moreBtn.className = 'mood more';
+  moreBtn.id = 'more';
+  moreBtn.title = 'More cat memories';
+  moreBtn.setAttribute('aria-expanded', 'false');
+  moreBtn.setAttribute('aria-controls', 'panel');
+  moreBtn.innerHTML = '<span class="ring"><canvas class="orb" width="128" height="128" hidden></canvas><span class="plus" aria-hidden="true">+</span></span><span class="label">More</span>';
+  moreBtn.addEventListener('click', openMore);
+  $('moods').appendChild(moreBtn);
+  MORE.forEach(i => makeMoodButton(i, $('moreList'), 0));
+
+  function drawMarbleOn(c, i) {
+    const g = c.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, c.width, c.height);
+    g.translate(c.width / 2, c.height / 2);
+    paintMarble(g, i, c.width / 2, 0);
+  }
   function drawPicker() {
-    moodButtons.forEach(btn => {
-      const i = Number(btn.dataset.mood);
-      const c = btn.querySelector('canvas'), g = c.getContext('2d');
-      g.setTransform(1, 0, 0, 1, 0, 0);
-      g.clearRect(0, 0, c.width, c.height);
-      g.translate(c.width / 2, c.height / 2);
-      paintMarble(g, i, c.width / 2, 0);
-    });
+    moodButtons.forEach(btn => drawMarbleOn(btn.querySelector('canvas'), Number(btn.dataset.mood)));
+    renderMore();
+  }
+  // The More button shows the chosen side-panel marble, so kids can see what they picked.
+  function renderMore() {
+    const extra = MORE.includes(mood);
+    const c = moreBtn.querySelector('canvas');
+    c.hidden = !extra;
+    moreBtn.querySelector('.plus').hidden = extra;
+    moreBtn.setAttribute('aria-pressed', extra ? 'true' : 'false');
+    moreBtn.style.setProperty('--c', extra ? MOODS[mood].hex : 'transparent');
+    moreBtn.querySelector('.label').textContent = extra ? MOODS[mood].name : 'More';
+    if (extra) drawMarbleOn(c, mood);
   }
   function selectMood(i) {
     mood = i;
     moodButtons.forEach(b => b.setAttribute('aria-pressed', Number(b.dataset.mood) === i ? 'true' : 'false'));
+    renderMore();
   }
+
+  function openMore() {
+    $('panel').classList.add('open');
+    $('panel').setAttribute('aria-hidden', 'false');
+    $('scrim').hidden = false;
+    moreBtn.setAttribute('aria-expanded', 'true');
+    const current = $('moreList').querySelector('[aria-pressed="true"]') || $('moreList').querySelector('.mood');
+    if (current) current.focus({ preventScroll: true });
+  }
+  function closeMore() {
+    if (!$('panel').classList.contains('open')) return;
+    $('panel').classList.remove('open');
+    $('panel').setAttribute('aria-hidden', 'true');
+    $('scrim').hidden = true;
+    moreBtn.setAttribute('aria-expanded', 'false');
+  }
+  $('closeMore').addEventListener('click', closeMore);
+  $('scrim').addEventListener('click', closeMore);
   window.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeMore(); return; }
     if (mode !== 'play') return;
     const n = parseInt(e.key, 10);
     if (n >= 1 && n <= PICKER.length) selectMood(PICKER[n - 1]);
+    if (n === PICKER.length + 1) openMore();
   });
 
   // ---- falling marble sprites (one per feeling, redrawn on resize) ----
@@ -873,11 +1008,12 @@
     $('fresh').hidden = !t;
     if (mode === 'display') {
       endStrokes();
+      closeMore();
       $('hint').innerHTML = t ? 'Classroom display · teacher' : 'Classroom display';
       $('emptyText').textContent = 'Waiting for memories. Open the play link on a tablet and tap to drop one.';
     } else {
       canPour = canWrite;
-      $('hint').innerHTML = 'Pick a feeling, then tap to drop a memory.<span class="hint-wide"> Hold to keep dropping.</span>';
+      $('hint').innerHTML = 'Pick a cat memory, then tap to drop it.<span class="hint-wide"> Tap More for extra cats. Hold to keep dropping.</span>';
       $('emptyText').textContent = 'Pick a feeling below, then tap anywhere in the box.';
     }
     if (fdb && connected) fdb.ref('screens/' + session).set({ mode: presenceMode() }).catch(() => {});
