@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Sandfall Memories</title>
+<title>Cat Emotions</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -350,7 +350,7 @@
 <div class="app">
   <header class="top">
     <div class="mark">
-      <h1>Sandfall Memories <span class="beta">experiment</span></h1>
+      <h1>Cat Emotions <span class="beta">experiment</span></h1>
       <p id="hint"></p>
       <p class="notice" id="notice" hidden></p>
     </div>
@@ -365,12 +365,12 @@
   <div class="dock" id="dock">
     <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
     <span class="count" id="count">0 memories</span>
-    <span class="build" title="Version of this page">build 2026-10-21a</span>
+    <span class="build" title="Version of this page">build 2026-10-21b</span>
   </div>
 
   <footer class="foot" id="foot" hidden>
     <span class="count" id="dcount">0 memories</span>
-    <span class="build" title="Version of this page">build 2026-10-21a</span>
+    <span class="build" title="Version of this page">build 2026-10-21b</span>
     <div class="teacher">
       <button class="btn" id="fs" type="button">Full screen</button>
       <button class="btn" id="fresh" type="button" hidden>Start fresh</button>
@@ -432,12 +432,12 @@
     { name: 'Tired',    hex: '#5e81ac', img: 'images/cat-tired.webp' },     // blue
   ];
   const PICKER = [3, 2, 4, 6, 5];          // main row: Happy, Sad, Scared, Confused, Calm
-  // Side panel: the rest, grouped by colour family.
+  // Side panel: every cat (the starters too), grouped by colour family.
   const MORE_GROUPS = [
-    { title: 'Yellow', note: 'happy and full of energy', hex: '#ffd60a', ids: [7, 0, 9, 8] },
-    { title: 'Green',  note: 'happy and calm',           hex: '#40916c', ids: [14, 16] },
-    { title: 'Blue',   note: 'upset and low energy',     hex: '#1d4e89', ids: [11, 17] },
-    { title: 'Red',    note: 'upset and full of energy', hex: '#c1121f', ids: [1, 12, 10] },
+    { title: 'Yellow', note: 'happy and full of energy', hex: '#ffd60a', ids: [3, 7, 0, 9, 8] },
+    { title: 'Green',  note: 'happy and calm',           hex: '#40916c', ids: [5, 14, 16] },
+    { title: 'Blue',   note: 'upset and low energy',     hex: '#1d4e89', ids: [2, 6, 11, 17] },
+    { title: 'Red',    note: 'upset and full of energy', hex: '#c1121f', ids: [4, 1, 12, 10] },
   ];
   const MORE = MORE_GROUPS.flatMap(g => g.ids);
 
@@ -557,6 +557,9 @@
   const WAKE_V = 1.2;             // how hard a hit has to be to set a sleeping marble moving (resting weight doesn't count)
 
   function wake(b) { b.aw = true; b.vx = 0; b.vy = 0; b.calm = 0; b.still = 0; }
+  // Set by simulate(): the first same-kind pair that touched (it stops early so they can merge
+  // right away), and the marbles that were still moving when it stopped.
+  let lastHit = null, lastFlying = [];
   // Would pushing marble m along (px, py) shove it into the floor or a wall? Then it can't give way.
   const pinned = (m, px, py) => (py > 0.3 && m.y >= GH - m.r - 0.01) || (px < -0.3 && m.x <= m.r + 0.01) || (px > 0.3 && m.x >= GW - m.r - 0.01);
   // How much of an overlap each of two moving marbles takes: by weight, unless one is pinned.
@@ -591,8 +594,8 @@
       moved.add(b); awake++;
     }
     const T0 = tl ? tl.now() : 0;
-    let step = 0;
-    for (; step < MAX_STEPS && awake > 0; step++) {
+    let step = 0, hit = null;
+    for (; step < MAX_STEPS && awake > 0 && !hit; step++) {
       for (const b of balls) if (b.aw) {
         b.vy = Math.min(b.vy + G, VMAX);
         b.x += b.vx; b.y += b.vy;
@@ -605,9 +608,9 @@
           const a = balls[ai];
           if (!a.aw) continue;
           const r = a.r;
-          if (a.x < r) { a.x = r; if (first && a.vx < 0) a.vx = -a.vx * BOUNCE; a.touch = a.wall = true; }
-          else if (a.x > GW - r) { a.x = GW - r; if (first && a.vx > 0) a.vx = -a.vx * BOUNCE; a.touch = a.wall = true; }
-          if (a.y > GH - r) { a.y = GH - r; if (first && a.vy > 0) a.vy = -a.vy * BOUNCE; a.touch = a.floor = true; }
+          if (a.x < r) { a.x = r; if (first && a.vx < 0) a.vx = a.vx < -1 ? -a.vx * BOUNCE : 0; a.touch = a.wall = true; }
+          else if (a.x > GW - r) { a.x = GW - r; if (first && a.vx > 0) a.vx = a.vx > 1 ? -a.vx * BOUNCE : 0; a.touch = a.wall = true; }
+          if (a.y > GH - r) { a.y = GH - r; if (first && a.vy > 0) a.vy = a.vy > 1 ? -a.vy * BOUNCE : 0; a.touch = a.floor = true; }
           for (let bi = 0; bi < balls.length; bi++) {
             if (bi === ai) continue;
             const b = balls[bi];
@@ -621,6 +624,7 @@
             const d = Math.sqrt(d2);
             const nx = dx / d, ny = dy / d, pen = D - d;
             const ma = r * r, mb = b.r * b.r;
+            if (first && !hit && a.c === b.c) hit = [a, b];   // same kind touching: they merge as soon as this step ends
             if (first && !b.aw) {
               const impact = -(a.vx * nx + a.vy * ny) * Math.min(2, ma / mb);   // a heavier marble hits harder
               if (impact > WAKE_V) {
@@ -637,7 +641,7 @@
               b.x -= nx * pen * sb; b.y -= ny * pen * sb;
               const vn = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
               if (first && vn < 0) {
-                const j = -(1 + BOUNCE) * vn / (1 / ma + 1 / mb);
+                const j = -(1 + (vn < -1 ? BOUNCE : 0)) * vn / (1 / ma + 1 / mb);   // gentle touches don't bounce
                 a.vx += j / ma * nx; a.vy += j / ma * ny;
                 b.vx -= j / mb * nx; b.vy -= j / mb * ny;
               }
@@ -645,7 +649,7 @@
             } else {                             // sleeping marble stays put
               a.x = b.x + nx * D; a.y = b.y + ny * D;
               const vn = a.vx * nx + a.vy * ny;
-              if (first && vn < 0) { a.vx -= (1 + BOUNCE) * vn * nx; a.vy -= (1 + BOUNCE) * vn * ny; }
+              if (first && vn < 0) { const e = vn < -1 ? BOUNCE : 0; a.vx -= (1 + e) * vn * nx; a.vy -= (1 + e) * vn * ny; }
             }
             if (first) { a.touch = true; a.contacts++; a.lastNx = nx; if (ny < 0) a.below++; }
           }
@@ -666,7 +670,7 @@
                 const nx = dx / d, ny = dy / d;
                 a.x = cx + nx * D; a.y = cy + ny * D;
                 const vn = a.vx * nx + a.vy * ny;
-                if (first && vn < 0) { a.vx -= (1 + BOUNCE) * vn * nx; a.vy -= (1 + BOUNCE) * vn * ny; }
+                if (first && vn < 0) { const e = vn < -1 ? BOUNCE : 0; a.vx -= (1 + e) * vn * nx; a.vy -= (1 + e) * vn * ny; }
                 if (first) { a.touch = a.onSand = true; a.contacts++; a.lastNx = nx; if (ny < 0) a.below++; }
               }
             }
@@ -691,11 +695,14 @@
         if (rest) { b.aw = false; b.vx = 0; b.vy = 0; awake--; }
       }
     }
-    for (const b of balls) if (b.aw) { b.aw = false; b.vx = 0; b.vy = 0; }
+    // stopped early for a merge: marbles still moving keep their speed and carry on afterwards
+    const flying = [];
+    for (const b of balls) if (b.aw) { b.aw = false; if (hit) flying.push(b); else { b.vx = 0; b.vy = 0; } }
+    lastHit = hit; lastFlying = flying;
     if (tl) tl.advance(step);
     // tidy: no overflow, no sand inside a marble (overlaps are cleaned up for the whole box afterwards)
     for (const b of moved) {
-      if (!balls.includes(b)) continue;
+      if (!balls.includes(b) || flying.includes(b)) continue;
       if (b.y < b.r - 0.5) { balls = balls.filter(o => o !== b); continue; }   // resting above the box: it overflows
       if (sandCount) shiftSandOut(b);
       if (tl) tl.put(b, tl.now(), b.x, b.y, b.r, 1);
@@ -887,7 +894,11 @@
       const D = a.r + o.r + TOUCH, dx = a.x - o.x, dy = a.y - o.y;
       if (dx * dx + dy * dy <= D * D) { b = o; break; }
     }
-    if (!b) return null;
+    return b ? mergeOf(a, b) : null;
+  }
+
+  // Where the combined marble of a and b goes: their meeting point or the nearest open spot above.
+  function mergeOf(a, b) {
     const A1 = a.r * a.r, A2 = b.r * b.r;
     const r = Math.sqrt(A1 + A2);             // same total area, like agar.io
     if (r * 2 > GH || r * 2 > GW) return null;
@@ -922,14 +933,25 @@
       gone = [];
       if (movers.length) {
         const moved = simulate(movers, tl);
+        const hit = lastHit, flying = lastFlying.filter(b => balls.includes(b));
         movers = [];
         for (const b of moved) {
+          if (flying.includes(b)) continue;
           const dx = b.x - b.sx, dy = b.y - b.sy;
           if (dx * dx + dy * dy > 1) gone.push({ x: b.sx, y: b.sy, r: b.r });   // a wiggle doesn't count
           if (balls.includes(b)) queue.push(b);
         }
         if (pending && !balls.includes(pending.m)) { balls.push(pending.a, pending.b); }   // box full: they stay apart
         pending = null;
+        if (hit && balls.includes(hit[0]) && balls.includes(hit[1])) {
+          const mg = mergeOf(hit[0], hit[1]);
+          if (mg) {
+            const m = combine(mg);
+            movers = [m, ...flying.filter(b => b !== mg.a && b !== mg.b)];
+            continue;
+          }
+        }
+        if (flying.length) { movers = flying; continue; }
       }
       const poured = pourLooseSand(rand);
       if (poured) gone.push(poured);
@@ -946,13 +968,18 @@
       while (queue.length && !mg) { const a = queue.shift(); if (balls.includes(a)) mg = findMerge(a); }
       if (!mg) mg = anyMerge();
       if (!mg) return;
+      movers = [combine(mg)];
+    }
+
+    // Replaces the pair with their combined marble (it then rolls to rest).
+    function combine(mg) {
       const m = { x: mg.x, y: mg.y, r: mg.r, c: mg.a.c, i: ch.i + '/' + (++made), n: mg.a.n + mg.b.n, vx: 0, vy: 0 };
       gone = [{ x: mg.a.x, y: mg.a.y, r: mg.a.r }, { x: mg.b.x, y: mg.b.y, r: mg.b.r }];
       balls = balls.filter(o => o !== mg.a && o !== mg.b);
       if (tl) tl.merge(mg.a, mg.b, m);
       balls.push(m);
-      movers = [m];
       pending = { m, a: mg.a, b: mg.b };
+      return m;
     }
   }
 
@@ -1054,15 +1081,24 @@
       merge(a, b, m) {
         holdUntil(a, a.x, a.y, T);
         holdUntil(b, b.x, b.y, T);
-        for (let k = 1; k <= 8; k++) {        // the two slide together and fade
-          const t = k / 8;
+        for (let k = 1; k <= 5; k++) {        // the two slide together and fade
+          const t = k / 5;
           put(a, T + k, a.x + (m.x - a.x) * t, a.y + (m.y - a.y) * t, a.r, 1 - t * 0.7);
           put(b, T + k, b.x + (m.x - b.x) * t, b.y + (m.y - b.y) * t, b.r, 1 - t * 0.7);
         }
-        for (let k = 0; k <= 8; k++) put(m, T + 4 + k, m.x, m.y, m.r * (0.55 + 0.45 * k / 8), 0.4 + 0.6 * k / 8);
-        T += 12;
+        for (let k = 0; k <= 5; k++) put(m, T + 2 + k, m.x, m.y, m.r * (0.6 + 0.4 * k / 5), 0.5 + 0.5 * k / 5);
+        T += 6;
       },
       finish(alive) {
+        for (const t of tracks.values()) {
+          const f = t.f, out = f.slice();
+          for (let k = 2; k < f.length - 2; k++) {
+            const w = [f[k - 2], f[k - 1], f[k], f[k + 1], f[k + 2]];
+            if (w.some(p => !p || p[3] !== 1 || p[2] !== f[k][2])) continue;
+            out[k] = [(w[0][0] + w[1][0] + w[2][0] + w[3][0] + w[4][0]) / 5, (w[0][1] + w[1][1] + w[2][1] + w[3][1] + w[4][1]) / 5, f[k][2], 1];
+          }
+          t.f = out;
+        }
         const end = Math.max(T, sandEnd) + 1;
         for (const [id, t] of tracks) if (alive.has(id) && t.f.length) put({ i: id, c: t.c }, end, ...t.f[t.f.length - 1]);
         return { tracks, end, grains, sandStart };
@@ -1183,12 +1219,22 @@
     lastAction = now;
     return true;
   }
+  // A dropped ball that is still appearing (waiting its turn) under the tap.
+  function formingAt(x, y) {
+    for (let j = committed; j < chunks.length; j++) {
+      const ch = chunks[j];
+      if (ch.l === 1) continue;
+      const dx = x - ch.p[0], dy = y - Math.min(GH - R, Math.max(R, ch.p[1])), rr = R * 1.3 + 3;
+      if (dx * dx + dy * dy <= rr * rr) return true;
+    }
+    return false;
+  }
   // Marbles where they are drawn right now (settled or mid-fall), for tapping.
   let onScreen = [];
   function marbleOnScreen(x, y) {
     let hit = null;
     for (const b of onScreen) {
-      const dx = x - b.x, dy = y - b.y, rr = b.r + 3;
+      const dx = x - b.x, dy = y - b.y, rr = b.r * 1.3 + 3;   // the glow around a ball counts as the ball
       if (dx * dx + dy * dy <= rr * rr && (!hit || b.r < hit.r)) hit = b;
     }
     return hit;
@@ -1206,6 +1252,7 @@
     const now = performance.now();
     const hit = marbleOnScreen(x, y);
     if (hit) { if (!popping.has(hit.i) && canAct(now)) popAt(x, y, hit); return; }   // tapped a marble: pop it
+    if (formingAt(x, y)) return;               // tapped a ball that's still appearing: don't add another on top
     try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
     holds.set(e.pointerId, { x, y, last: now });
     if (canAct(now)) dropAt(x, y);
@@ -1354,7 +1401,7 @@
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'mood';
-    btn.id = 'mood-' + m.name.toLowerCase();
+    btn.id = 'mood-' + m.name.toLowerCase() + (key ? '' : '-more');
     btn.style.setProperty('--c', m.hex);
     btn.title = m.name + (key ? ' (' + key + ')' : '');
     btn.dataset.mood = i;
@@ -1398,7 +1445,7 @@
   }
   // The More button shows the chosen side-panel marble, so kids can see what they picked.
   function renderMore() {
-    const extra = MORE.includes(mood);
+    const extra = !PICKER.includes(mood);     // chosen from the panel and not in the main row
     const c = moreBtn.querySelector('canvas');
     c.hidden = !extra;
     moreBtn.querySelector('.plus').hidden = extra;
