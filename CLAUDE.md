@@ -11,6 +11,14 @@ The `main` branch is the website. GitHub Pages republishes it within a minute or
 
 After a change the user asked for: check it, commit with a short message, then `git push`. Then tell the user the site will update in a minute or two at the GitHub Pages address.
 
+## Versions
+
+Named versions are git tags (`git tag -l`). When the user says "save this as version N", make an annotated tag `vN` on the current commit and push it (`git push origin vN`).
+
+- `v1` (2026-10-20): first working classroom version. Nine feelings (Happy, Sad, Mad, Scared, Worried, Excited, Sleepy, Calm, Proud), play/display/teacher modes, Firebase sync with teacher-code Start fresh.
+
+To go back to a version, restore its files onto `main` with a new commit (`git checkout vN -- .` then commit and push) instead of rewriting history, so the site and every later version stay intact.
+
 ## Files
 
 - `index.html`: the whole game (HTML, CSS and JS in one file).
