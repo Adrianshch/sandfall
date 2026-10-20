@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sandfall Beta</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  [hidden] { display: none !important; }
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; font-size: 14px; }
+
+  /* Layout: header row, one shared sandbox scaled to fit (same 480x300 grain grid on every screen), then the feelings dock (play) or a quiet footer (display). */
+  :root {
+    --bg: #e4e9ed;
+    --sky: #f3f6f8;
+    --box: #fbfcfd;
+    --ink: #1c2530;
+    --muted: #5a6876;
+    --surface: rgba(255, 255, 255, 0.82);
+    --line: rgba(28, 37, 48, 0.12);
+    --accent: #b8612a;
+    --live: #2f9e6a;
+    --warn: #b5482f;
+    --shadow: 0 10px 30px rgba(28, 37, 48, 0.14);
+    --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10151b; --sky: #1a222b; --box: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
+      --surface: rgba(24, 31, 39, 0.84); --line: rgba(232, 237, 242, 0.12);
+      --accent: #e59a5e; --live: #4cc48c; --warn: #f07a5e; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151b; --sky: #1a222b; --box: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
+    --surface: rgba(24, 31, 39, 0.84); --line: rgba(232, 237, 242, 0.12);
+    --accent: #e59a5e; --live: #4cc48c; --warn: #f07a5e; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+
+  html, body { height: 100%; }
+  body {
+    background: linear-gradient(to bottom, var(--sky), var(--bg)) var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .app {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-block: 14px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    box-sizing: border-box;
+  }
+
+  .top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .mark { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .mark h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.5rem;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .beta {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    padding: 2px 6px 1px;
+  }
+  .mark p { margin: 0; font-size: 0.82rem; color: var(--muted); }
+  .notice { margin: 0; font-size: 0.82rem; font-weight: 600; color: var(--warn); }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 12px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .status.live .dot { background: var(--live); box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 25%, transparent); }
+  .status.live { color: var(--ink); }
+
+  .box {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    place-items: center;
+  }
+  canvas {
+    display: block;
+    max-width: 100%;
+    background: var(--box);
+    border-radius: 14px;
+    box-shadow: 0 0 0 1px var(--line), var(--shadow);
+    image-rendering: pixelated;
+    touch-action: none;
+  }
+  body[data-mode="play"] canvas { cursor: crosshair; }
+  .empty {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    text-align: center;
+    padding: 24px;
+  }
+  .empty p {
+    margin: 0;
+    max-width: 30ch;
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: clamp(1rem, 2.4vw, 1.6rem);
+    line-height: 1.3;
+    color: var(--muted);
+    text-wrap: balance;
+  }
+
+  .dock {
+    align-self: center;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px 14px;
+    padding: 8px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .moods { display: grid; grid-template-columns: repeat(9, auto); gap: 4px; }
+  .mood {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font: 600 0.82rem var(--font-body);
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 7px 12px 7px 8px;
+    cursor: pointer;
+  }
+  .mood .dot {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--c);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+    transition: transform 0.15s ease;
+  }
+  .mood:hover { border-color: var(--line); }
+  .mood[aria-pressed="true"] {
+    border-color: var(--c);
+    background: color-mix(in srgb, var(--c) 16%, transparent);
+  }
+  .mood[aria-pressed="true"] .dot { transform: scale(1.15); }
+  .mood:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .count {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    padding-inline: 4px;
+  }
+
+  .foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .teacher { display: flex; gap: 8px; opacity: 0.55; transition: opacity 0.2s ease; }
+  .teacher:hover, .teacher:focus-within { opacity: 1; }
+  .btn {
+    font: 600 0.8rem var(--font-body);
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--muted); }
+  .btn.armed { color: var(--warn); border-color: var(--warn); }
+
+  body[data-mode="display"] .mark h1 { font-size: 1.25rem; }
+
+  @media (max-width: 1080px) {
+    .moods { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .mark h1 { font-size: 1.25rem; }
+    .hint-wide { display: none; }
+    .mood { padding: 7px 8px 7px 6px; font-size: 0.78rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mood .dot, .teacher { transition: none; }
+  }
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="config.js"></script>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div class="mark">
+      <h1>Sandfall <span class="beta">beta</span></h1>
+      <p id="hint"></p>
+      <p class="notice" id="notice" hidden></p>
+    </div>
+    <span class="status" id="status"><span class="dot"></span><span id="statusText">Connecting…</span></span>
+  </header>
+
+  <main class="box" id="box">
+    <canvas id="sand"></canvas>
+    <div class="empty" id="empty"><p id="emptyText"></p></div>
+  </main>
+
+  <div class="dock" id="dock">
+    <div class="moods" id="moods" role="group" aria-label="Sand color by feeling"></div>
+    <span class="count" id="count">0 grains</span>
+  </div>
+
+  <footer class="foot" id="foot" hidden>
+    <span class="count" id="dcount">0 grains</span>
+    <div class="teacher">
+      <button class="btn" id="fs" type="button">Full screen</button>
+      <button class="btn" id="fresh" type="button" hidden>Start fresh</button>
+    </div>
+  </footer>
+</div>
+
+<script>
+(() => {
+  // Every screen rebuilds the same picture from the same ordered list of pours.
+  // A pour is a short burst of finger positions plus a random seed; placing its
+  // grains uses only that seed and plain arithmetic, so all screens agree.
+  const GW = 480, GH = 300;      // shared grain grid
+  const HORIZON = 400;           // ms a pour waits before it settles, so late arrivals can slot in
+  const CHUNK_MS = 100;          // one pour per 100 ms of pouring
+  const CHECKPOINT_EVERY = 50;
+
+  const MOODS = [
+    { name: 'Happy',     hex: '#f4c430' },
+    { name: 'Sad',       hex: '#3d7cc9' },
+    { name: 'Mad',       hex: '#d63a2f' },
+    { name: 'Scared',    hex: '#7d5ba6' },
+    { name: 'Worried',   hex: '#8592a3' },
+    { name: 'Excited',   hex: '#f28c28' },
+    { name: 'Surprised', hex: '#3fbfd4' },
+    { name: 'Calm',      hex: '#4fae8b' },
+    { name: 'Proud',     hex: '#e8749e' },
+  ];
+  const PALETTE = MOODS.map(m => hexToRgb(m.hex));
+
+  const $ = id => document.getElementById(id);
+  const canvas = $('sand'), ctx = canvas.getContext('2d');
+  const box = $('box');
+  canvas.width = GW; canvas.height = GH;
+  const img = ctx.createImageData(GW, GH);
+  const frame = new Uint32Array(img.data.buffer);
+  const grid = new Uint32Array(GW * GH);
+  let grains = 0;
+
+  const session = Math.random().toString(36).slice(2, 10);
+  let seq = 0;
+  let mode = 'play';
+  let mood = 0, radius = 3;
+
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function shade(rgb, s) {
+    const k = 0.84 + s * 0.24;
+    const r = Math.min(255, rgb[0] * k) | 0;
+    const g = Math.min(255, rgb[1] * k) | 0;
+    const b = Math.min(255, rgb[2] * k) | 0;
+    return ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;
+  }
+  function rng32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ---- deterministic placement ----
+  function settle(x, y, col, rand) {
+    while (y < GH - 1) {
+      const b = (y + 1) * GW;
+      if (!grid[b + x]) { y++; continue; }
+      const d = rand() < 0.5 ? -1 : 1;
+      const a = x + d, c = x - d;
+      if (a >= 0 && a < GW && !grid[b + a]) { x = a; y++; continue; }
+      if (c >= 0 && c < GW && !grid[b + c]) { x = c; y++; continue; }
+      break;
+    }
+    grid[y * GW + x] = col;
+    grains++;
+  }
+  function pourAt(cx, cy, r, rgb, rand) {
+    const n = Math.max(2, Math.round(r * r * 0.7));
+    for (let k = 0; k < n; k++) {
+      const dx = (rand() * 2 - 1) * r, dy = (rand() * 2 - 1) * r, s = rand();
+      if (dx * dx + dy * dy > r * r) continue;
+      const x = Math.round(cx + dx), y = Math.round(cy + dy);
+      if (x < 0 || x >= GW || y < 0 || y >= GH) continue;
+      if (!grid[y * GW + x]) settle(x, y, shade(rgb, s), rand);
+    }
+  }
+  function walk(ch, fn) {
+    const p = ch.p;
+    let i = 0, px = null, py = null;
+    if (ch.l) { px = p[0]; py = p[1]; i = 2; }
+    for (; i < p.length; i += 2) {
+      const x = p[i], y = p[i + 1];
+      if (px === null) fn(x, y);
+      else {
+        const dx = x - px, dy = y - py;
+        const steps = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy) / Math.max(1, ch.r)));
+        for (let s = 1; s <= steps; s++) fn(px + dx * s / steps, py + dy * s / steps);
+      }
+      px = x; py = y;
+    }
+  }
+  function applyChunk(ch) {
+    const rand = rng32(ch.s), rgb = PALETTE[ch.c];
+    walk(ch, (x, y) => pourAt(x, y, ch.r, rgb, rand));
+  }
+
+  // ---- ordered pour log ----
+  let gen = 'local';
+  let chunks = [], seen = new Set(), committed = 0, checkpoints = [];
+  let lastKey = 0, skew = 0, clockOffset = 0;
+  const committedIds = new Set();
+
+  const logicalNow = () => Date.now() + clockOffset + skew;
+  function nextKey() {
+    lastKey = Math.max(Math.floor(logicalNow()), lastKey + 1);
+    return lastKey;
+  }
+  function observeKey(k) {
+    if (k > lastKey) lastKey = k;
+    const ahead = k - (Date.now() + clockOffset);
+    if (ahead > skew) skew = Math.min(60000, ahead);
+  }
+  function cmp(a, b) { return a.k - b.k || (a.i < b.i ? -1 : a.i > b.i ? 1 : 0); }
+
+  function addChunk(ch, remote) {
+    if (seen.has(ch.i)) return;
+    seen.add(ch.i);
+    if (remote) observeKey(ch.k);
+    let lo = 0, hi = chunks.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (cmp(chunks[m], ch) < 0) lo = m + 1; else hi = m; }
+    chunks.splice(lo, 0, ch);
+    if (lo < committed) rollback(lo);
+    if (remote && ch.k > logicalNow() - HORIZON) spawnFor(ch);
+  }
+  function rollback(idx) {
+    while (checkpoints.length && checkpoints[checkpoints.length - 1].idx > idx) checkpoints.pop();
+    const cp = checkpoints[checkpoints.length - 1];
+    if (cp) { grid.set(cp.grid); grains = cp.grains; committed = cp.idx; }
+    else { grid.fill(0); grains = 0; committed = 0; }
+  }
+  function commit() {
+    const limit = logicalNow() - HORIZON;
+    while (committed < chunks.length && chunks[committed].k <= limit) {
+      const ch = chunks[committed];
+      applyChunk(ch);
+      committedIds.add(ch.i);
+      committed++;
+      if (committed % CHECKPOINT_EVERY === 0) {
+        checkpoints.push({ idx: committed, grid: grid.slice(), grains });
+        if (checkpoints.length > 8) checkpoints.shift();
+      }
+    }
+  }
+  function resetLog() {
+    chunks = []; seen = new Set(); committed = 0; checkpoints = [];
+    grid.fill(0); grains = 0; particles = []; occ.fill(0);
+  }
+
+  function valid(c) {
+    if (!c || typeof c !== 'object') return null;
+    const { i, k, s, p } = c, col = c.c, r = c.r, l = c.l;
+    if (typeof i !== 'string' || i.length > 64) return null;
+    if (!Number.isFinite(k) || k < 0) return null;
+    if (!Number.isInteger(col) || col < 0 || col >= MOODS.length) return null;
+    if (!Number.isInteger(r) || r < 1 || r > 14) return null;
+    if (!Number.isInteger(s) || s < 0 || s > 4294967295) return null;
+    if (l !== 0 && l !== 1) return null;
+    if (!Array.isArray(p) || p.length < 2 || p.length > 400 || p.length % 2) return null;
+    for (let j = 0; j < p.length; j += 2) {
+      const x = p[j], y = p[j + 1];
+      if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= GW || y < 0 || y >= GH) return null;
+    }
+    return { i, k, c: col, r, s, l, p: p.slice() };
+  }
+
+  // ---- falling grains you see before a pour settles (looks only) ----
+  // They fall and pile up like real sand right away, then hand over to the
+  // settled grains once their pour is placed.
+  let particles = [];
+  const occ = new Uint8Array(GW * GH);
+  function spawnParticle(x, y, rgb, ch) {
+    x = Math.round(x); y = Math.round(y);
+    if (x < 0 || x >= GW || y < 0 || y >= GH) return;
+    const i = y * GW + x;
+    if (grid[i] || occ[i]) return;
+    occ[i] = 1;
+    particles.push({ x, y, v: 2, col: shade(rgb, Math.random()), ch, t: performance.now() });
+  }
+  function spawnBurst(x, y, r, rgb, ch) {
+    const n = Math.max(2, Math.round(r * r * 0.7));
+    for (let k = 0; k < n; k++) {
+      const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * r;
+      spawnParticle(x + Math.cos(a) * d, y + Math.sin(a) * d, rgb, ch);
+    }
+  }
+  function spawnFor(ch) {
+    const rgb = PALETTE[ch.c];
+    walk(ch, (x, y) => spawnBurst(x, y, ch.r, rgb, ch.i));
+  }
+  function updateParticles() {
+    const t = performance.now();
+    let w = 0;
+    for (const p of particles) {
+      if (committedIds.has(p.ch) || t - p.t > 4000) { occ[p.y * GW + p.x] = 0; continue; }
+      particles[w++] = p;
+    }
+    particles.length = w;
+    committedIds.clear();
+    // Lowest grains move first so a falling column doesn't block itself.
+    particles.sort((a, b) => b.y - a.y);
+    for (const p of particles) {
+      p.v = Math.min(p.v + 0.35, 6);
+      const n = p.v | 0;
+      for (let s = 0; s < n && p.y < GH - 1; s++) {
+        const i = p.y * GW + p.x, b = i + GW;
+        let nx = -1;
+        if (!grid[b] && !occ[b]) nx = p.x;
+        else {
+          const d = Math.random() < 0.5 ? -1 : 1;
+          const a = p.x + d, c = p.x - d;
+          if (a >= 0 && a < GW && !grid[b + d] && !occ[b + d]) nx = a;
+          else if (c >= 0 && c < GW && !grid[b - d] && !occ[b - d]) nx = c;
+        }
+        if (nx < 0) { p.v = 1; break; }
+        occ[i] = 0;
+        p.x = nx; p.y++;
+        occ[p.y * GW + p.x] = 1;
+      }
+    }
+  }
+
+  // ---- local pouring (multi-touch) ----
+  const strokes = new Map();
+  let canPour = true;
+
+  function startChunk(st, lead) {
+    st.id = session + ':' + (seq++);
+    st.k = nextKey();
+    st.s = (Math.random() * 4294967296) >>> 0;
+    st.c = mood; st.r = radius;
+    st.lead = lead; st.pts = [];
+    st.t0 = performance.now();
+  }
+  function closeChunk(st, cont) {
+    if (st.pts.length) {
+      const p = st.lead ? st.lead.concat(st.pts) : st.pts;
+      const ch = { i: st.id, k: st.k, c: st.c, r: st.r, s: st.s, l: st.lead ? 1 : 0, p };
+      addChunk(ch, false);
+      send(ch);
+    }
+    if (cont) {
+      const n = st.pts.length;
+      startChunk(st, n ? [st.pts[n - 2], st.pts[n - 1]] : st.lead);
+    }
+  }
+  function strokeFrame(st, now) {
+    const x = st.x, y = st.y, rgb = PALETTE[st.c];
+    if (st.px === null) spawnBurst(x, y, st.r, rgb, st.id);
+    else {
+      const dx = x - st.px, dy = y - st.py;
+      const steps = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy) / Math.max(1, st.r)));
+      for (let s = 1; s <= steps; s++) spawnBurst(st.px + dx * s / steps, st.py + dy * s / steps, st.r, rgb, st.id);
+    }
+    st.px = x; st.py = y;
+    st.pts.push(x, y);
+    if (now - st.t0 >= CHUNK_MS) closeChunk(st, true);
+  }
+  function toGrid(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.round((e.clientX - rect.left) / rect.width * GW);
+    const y = Math.round((e.clientY - rect.top) / rect.height * GH);
+    return [Math.min(GW - 1, Math.max(0, x)), Math.min(GH - 1, Math.max(0, y))];
+  }
+  canvas.addEventListener('pointerdown', e => {
+    if (mode !== 'play' || !canPour) return;
+    e.preventDefault();
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    const [x, y] = toGrid(e);
+    const st = { x, y, px: null, py: null };
+    startChunk(st, null);
+    strokes.set(e.pointerId, st);
+  });
+  canvas.addEventListener('pointermove', e => {
+    const st = strokes.get(e.pointerId);
+    if (st) [st.x, st.y] = toGrid(e);
+  });
+  const release = e => {
+    const st = strokes.get(e.pointerId);
+    if (!st) return;
+    closeChunk(st, false);
+    strokes.delete(e.pointerId);
+  };
+  canvas.addEventListener('pointerup', release);
+  canvas.addEventListener('pointercancel', release);
+  canvas.addEventListener('wheel', e => {
+    if (mode !== 'play') return;
+    e.preventDefault();
+    radius = Math.min(14, Math.max(1, radius + (e.deltaY < 0 ? 1 : -1)));
+  }, { passive: false });
+  function endStrokes() {
+    for (const st of strokes.values()) closeChunk(st, false);
+    strokes.clear();
+  }
+
+  // ---- feelings ----
+  const moodButtons = MOODS.map((m, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mood';
+    btn.id = 'mood-' + m.name.toLowerCase();
+    btn.style.setProperty('--c', m.hex);
+    btn.title = m.name + ' (' + (i + 1) + ')';
+    btn.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
+    btn.innerHTML = '<span class="dot"></span>' + m.name;
+    btn.addEventListener('click', () => selectMood(i));
+    $('moods').appendChild(btn);
+    return btn;
+  });
+  function selectMood(i) {
+    mood = i;
+    moodButtons.forEach((b, j) => b.setAttribute('aria-pressed', i === j ? 'true' : 'false'));
+  }
+  window.addEventListener('keydown', e => {
+    if (mode !== 'play') return;
+    if (e.key === '[') radius = Math.max(1, radius - 1);
+    if (e.key === ']') radius = Math.min(14, radius + 1);
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= MOODS.length) selectMood(n - 1);
+  });
+
+  // ---- sharing (Firebase Realtime Database, no sign-in) ----
+  // pours/<gen>/<id>  one pour each, written once, read by every screen
+  // state/gen         which picture is current; changing it needs the teacher code
+  // screens/<id>      who is connected right now (removed on disconnect)
+  const cfg = window.SANDFALL_CONFIG || {};
+  const fbConfig = cfg.firebase || {};
+  const configured = !!(window.firebase && fbConfig.databaseURL && !/your-project/i.test(fbConfig.databaseURL));
+  let fdb = null;
+  let canWrite = true, connected = false;
+  let poursQuery = null, screens = [];
+
+  function send(ch) {
+    if (!fdb || !canWrite || gen === 'local' || gen === 'solo') return;
+    fdb.ref('pours/' + gen + '/' + ch.i)
+      .set({ i: ch.i, k: ch.k, c: ch.c, r: ch.r, s: ch.s, l: ch.l, p: ch.p.join(',') })
+      .catch(e => {
+        if (/permission/i.test((e && (e.code || e.message)) || '')) {
+          canWrite = false;
+          canPour = false;
+          endStrokes();
+          showNotice("This screen can't add sand right now. Check the database rules in the setup guide.");
+        }
+      });
+  }
+
+  function setGen(g) {
+    endStrokes();
+    gen = g;
+    resetLog();
+    if (poursQuery) poursQuery.off();
+    const myGen = g;
+    poursQuery = fdb.ref('pours/' + g).orderByChild('k');
+    poursQuery.on('child_added', snap => {
+      if (myGen !== gen) return;
+      const raw = snap.val();
+      if (!raw || typeof raw.p !== 'string') return;
+      raw.p = raw.p.split(',').map(Number);
+      const ch = valid(raw);
+      if (ch) addChunk(ch, true);
+    }, () => showNotice('Could not read the shared sand. Check the database rules in the setup guide.'));
+  }
+
+  function showNotice(text) {
+    const n = $('notice');
+    n.textContent = text;
+    n.hidden = !text;
+  }
+
+  function renderStatus() {
+    const el = $('status'), txt = $('statusText');
+    el.classList.toggle('live', !!fdb && connected);
+    if (!fdb) { txt.textContent = gen === 'local' ? 'Connecting…' : 'This screen only'; return; }
+    if (!connected) { txt.textContent = 'Connecting…'; return; }
+    const tablets = screens.filter(s => s && s.mode === 'play').length;
+    if (mode === 'display') txt.textContent = 'Live · ' + tablets + (tablets === 1 ? ' tablet' : ' tablets');
+    else txt.textContent = 'Live · ' + screens.length + (screens.length === 1 ? ' screen' : ' screens');
+  }
+
+  function connect() {
+    if (!configured) {
+      gen = 'solo';
+      showNotice('Sharing is off: add your Firebase settings to config.js to link screens together.');
+      renderStatus();
+      return;
+    }
+    try {
+      firebase.initializeApp(fbConfig);
+      fdb = firebase.database();
+    } catch (e) {
+      fdb = null; gen = 'solo';
+      showNotice('Firebase settings in config.js could not be read. Copy them again from the Firebase console.');
+      renderStatus();
+      return;
+    }
+    fdb.ref('.info/serverTimeOffset').on('value', s => { clockOffset = Number(s.val()) || 0; });
+    fdb.ref('.info/connected').on('value', s => {
+      connected = !!s.val();
+      if (connected) {
+        const me = fdb.ref('screens/' + session);
+        me.onDisconnect().remove();
+        me.set({ mode }).catch(() => {});
+      }
+      renderStatus();
+    });
+    fdb.ref('screens').on('value', s => {
+      const v = s.val();
+      screens = v && typeof v === 'object' ? Object.values(v) : [];
+      renderStatus();
+    }, () => {});
+    fdb.ref('state/gen').on('value', s => {
+      const v = s.val();
+      const g = typeof v === 'string' && /^[a-z0-9]{1,24}$/i.test(v) ? v : 'g0';
+      if (g !== gen) setGen(g);
+    }, () => showNotice('Could not connect to the shared sand. Check the database rules in the setup guide.'));
+  }
+
+  // ---- teacher controls (display) ----
+  let armTimer = 0;
+  $('fresh').addEventListener('click', async () => {
+    const btn = $('fresh');
+    if (!btn.classList.contains('armed')) {
+      btn.classList.add('armed');
+      btn.textContent = 'Tap again to clear the sand';
+      clearTimeout(armTimer);
+      armTimer = setTimeout(() => { btn.classList.remove('armed'); btn.textContent = 'Start fresh'; }, 4000);
+      return;
+    }
+    clearTimeout(armTimer);
+    btn.classList.remove('armed');
+    btn.textContent = 'Start fresh';
+    if (!fdb) { resetLog(); return; }
+    if (!teacherCode) {
+      showNotice('Add your teacher code to the address: …/#teacher-YOURCODE');
+      return;
+    }
+    const old = gen, g = 'g' + Date.now().toString(36);
+    try {
+      await fdb.ref('state').set({ gen: g, key: teacherCode });
+      showNotice('');
+      fdb.ref('pours/' + old).remove().catch(() => {});
+    } catch (_) {
+      showNotice("Could not start fresh. Check that the code in this address matches the one in your database rules.");
+    }
+  });
+  $('fs').addEventListener('click', () => {
+    const el = document.documentElement;
+    if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); return; }
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => { $('fs').hidden = true; });
+    else $('fs').hidden = true;
+  });
+
+  // ---- modes ----
+  // #play (or no hash): feelings + pouring
+  // #display: the picture only
+  // #teacher-CODE: the display plus Start fresh
+  let teacherCode = '';
+  function applyMode() {
+    let h = '';
+    try { h = decodeURIComponent(location.hash.slice(1)); } catch (_) {}
+    const t = /^teacher(?:-([A-Za-z0-9_-]{1,64}))?$/.exec(h);
+    teacherCode = t && t[1] ? t[1] : '';
+    mode = t || h === 'display' ? 'display' : 'play';
+    document.body.dataset.mode = mode;
+    $('dock').hidden = mode !== 'play';
+    $('foot').hidden = mode !== 'display';
+    $('fresh').hidden = !t;
+    if (mode === 'display') {
+      endStrokes();
+      $('hint').innerHTML = t ? 'Classroom display · teacher' : 'Classroom display';
+      $('emptyText').textContent = 'Waiting for sand. Open the play link on a tablet and pour.';
+    } else {
+      canPour = canWrite;
+      $('hint').innerHTML = 'Pick a feeling, then hold to pour.<span class="hint-wide"> Everyone’s sand lands in the same picture.</span>';
+      $('emptyText').textContent = 'Pick a feeling below, then hold your finger on the sand box.';
+    }
+    if (fdb && connected) fdb.ref('screens/' + session).set({ mode }).catch(() => {});
+    renderStatus();
+  }
+  window.addEventListener('hashchange', applyMode);
+
+  // ---- layout + render ----
+  function fit() {
+    const r = box.getBoundingClientRect();
+    const s = Math.max(0.1, Math.min(r.width / GW, r.height / GH));
+    canvas.style.width = Math.floor(GW * s) + 'px';
+    canvas.style.height = Math.floor(GH * s) + 'px';
+  }
+  new ResizeObserver(fit).observe(box);
+
+  let lastGrains = -1, lastEmpty = null;
+  function render() {
+    frame.set(grid);
+    for (const p of particles) {
+      const idx = (p.y | 0) * GW + p.x;
+      if (!frame[idx]) frame[idx] = p.col;
+    }
+    ctx.putImageData(img, 0, 0);
+    if (grains !== lastGrains) {
+      lastGrains = grains;
+      const t = grains.toLocaleString() + (grains === 1 ? ' grain' : ' grains');
+      $('count').textContent = t;
+      $('dcount').textContent = t;
+    }
+    const empty = grains === 0 && particles.length === 0;
+    if (empty !== lastEmpty) { lastEmpty = empty; $('empty').hidden = !empty; }
+  }
+
+  function tick() {
+    const now = performance.now();
+    for (const st of strokes.values()) strokeFrame(st, now);
+    commit();
+    updateParticles();
+    render();
+    requestAnimationFrame(tick);
+  }
+
+  applyMode();
+  fit();
+  requestAnimationFrame(tick);
+  connect();
+})();
+</script>
+
+</body>
+</html>
