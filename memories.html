@@ -395,7 +395,7 @@
   const VMAX = 9;
   const BOUNCE = 0.3;
   const DRAG = 0.985;            // speed kept per step while touching something
-  const MAX_STEPS = 1200;
+  const MAX_STEPS = 600;
   const HORIZON = 400;           // ms a drop waits before it settles, so late arrivals can slot in
   const REPEAT_MS = 350;         // holding drops a marble this often
   const CHECKPOINT_EVERY = 10;
@@ -610,10 +610,60 @@
       } else calm = 0;
       if (touching && vx * vx + vy * vy < 0.005) { if (++still >= 30) break; } else still = 0;
     }
+    for (let it = 0; it < 8; it++) {          // squeezed between neighbours: push it fully out
+      let moved = false;
+      for (const b of balls) {
+        const D = r + b.r;
+        const dx = x - b.x, dy = y - b.y, d2 = dx * dx + dy * dy;
+        if (d2 >= (D - 0.05) * (D - 0.05)) continue;
+        const d = d2 > 1e-9 ? Math.sqrt(d2) : 1;
+        const nx = d2 > 1e-9 ? dx / d : 0, ny = d2 > 1e-9 ? dy / d : -1;
+        x = b.x + nx * D; y = b.y + ny * D;
+        moved = true;
+      }
+      if (x < r) x = r; else if (x > GW - r) x = GW - r;
+      if (y > GH - r) y = GH - r;
+      if (!moved) break;
+    }
+    const inside = (px, py) => balls.some(b => { const dx = px - b.x, dy = py - b.y, D = r + b.r - 0.3; return dx * dx + dy * dy < D * D; });
+    if (inside(x, y)) {                       // still wedged: move to the nearest clear spot, upward first
+      const dirs = [[0, -1], [0.3827, -0.9239], [-0.3827, -0.9239], [0.7071, -0.7071], [-0.7071, -0.7071],
+        [0.9239, -0.3827], [-0.9239, -0.3827], [1, 0], [-1, 0], [0.7071, 0.7071], [-0.7071, 0.7071], [0, 1]];
+      search:
+      for (let step = 0.5; step <= r * 3; step += 0.5) {
+        for (const [ux, uy] of dirs) {
+          const tx = x + ux * step, ty = y + uy * step;
+          if (tx < r || tx > GW - r || ty > GH - r) continue;
+          if (!inside(tx, ty)) { x = tx; y = ty; break search; }
+        }
+      }
+    }
     ball.x = x; ball.y = y;
     const kept = y >= r - 0.5;               // a marble resting above the box overflows
-    if (kept) balls.push(ball);
+    if (kept) { balls.push(ball); if (sandCount) shiftSandOut(ball); }
     return kept;
+  }
+
+  // Grains a marble was nudged into are moved up over its top and poured from there.
+  function shiftSandOut(b) {
+    const x0 = Math.max(0, Math.floor((b.x - b.r) / CELL)), x1 = Math.min(SW - 1, Math.floor((b.x + b.r) / CELL));
+    const y0 = Math.max(0, Math.floor((b.y - b.r) / CELL)), y1 = Math.min(SH - 1, Math.floor((b.y + b.r) / CELL));
+    const caught = [];
+    for (let gy = y0; gy <= y1; gy++) for (let gx = x0; gx <= x1; gx++) {
+      const i = gy * SW + gx;
+      if (!sand[i]) continue;
+      const dx = (gx + 0.5) * CELL - b.x, dy = (gy + 0.5) * CELL - b.y;
+      if (dx * dx + dy * dy < b.r * b.r) { caught.push(gx, sand[i]); sand[i] = 0; sandCount--; }
+    }
+    if (!caught.length) return;
+    markMarbles();
+    const rand = rng32(((b.x * 977) ^ (b.y * 131)) >>> 0);
+    for (let k = 0; k < caught.length; k += 2) {
+      const gx = caught[k];
+      let gy = Math.floor((b.y - b.r) / CELL) - 1;          // just above the marble in that column
+      while (gy >= 0 && !openCell(gx, gy)) gy--;
+      if (gy >= 0) pourGrain(gx, gy, caught[k + 1], rand);  // no room above at all: the grain is lost
+    }
   }
 
   // Resting on the floor, on sand, on two marbles below it, or on one marble and a wall.
@@ -657,12 +707,12 @@
     if (r * 2 > GH || r * 2 > GW) return null;
     const x = Math.min(GW - r, Math.max(r, (a.x * A1 + b.x * A2) / (A1 + A2)));
     const y = Math.min(GH - r, (a.y * A1 + b.y * A2) / (A1 + A2));
-    for (let lift = 0; lift <= r; lift += 1) { // the meeting point, or a little above it
+    for (let lift = 0; lift <= r * 3; lift += 1) { // the meeting point, or the nearest open spot above it
       const ty = y - lift;
       if (ty < r) break;
       if (!overlapsAny(x, ty, r, a, b)) return { a, b, x, y: ty, r };
     }
-    return null;
+    return { a, b, x, y: -r, r };              // no room nearby: it drops in from the top
   }
 
   const byLowestFirst = (p, q) => q.y - p.y || (p.i < q.i ? -1 : p.i > q.i ? 1 : 0);
@@ -715,6 +765,7 @@
       const p2 = tl ? [] : null;
       const mx = m.x, my = m.y;
       if (roll(m, m.x, m.y, 0, p2)) queue.push(m);
+      else { balls.push(mg.a, mg.b); continue; }   // the box is full: they stay as they were
       if (tl) tl.move(m, p2);
       left.push({ x: mx, y: my, r: m.r });
       settleGaps(queue, tl, left, rand);
@@ -752,7 +803,7 @@
 
   // Pops the marble under the tap into sand.
   function pop(ch, tl) {
-    const target = marbleAt(ch.p[0], ch.p[1]);
+    const target = (ch.t && balls.find(b => b.i === ch.t)) || marbleAt(ch.p[0], ch.p[1]);
     if (!target) return;
     const rand = rng32(ch.s);
     balls = balls.filter(b => b !== target);
@@ -854,7 +905,7 @@
   let chunks = [], seen = new Set(), committed = 0, checkpoints = [];
   let everCommitted = new Set();
   let lastKey = 0, skew = 0, clockOffset = 0;
-  let anims = [];                 // [{t0, end, tracks, grains, sandStart}]
+  let anims = [], animsVersion = 0;   // [{t0, end, tracks, grains, sandStart}]; version bumps when the list changes
 
   const logicalNow = () => Date.now() + clockOffset + skew;
   function nextKey() {
@@ -883,15 +934,20 @@
     const cp = checkpoints[checkpoints.length - 1];
     balls = cp ? copyBalls(cp.balls) : [];
     if (cp) { sand.set(cp.sand); sandCount = cp.sandCount; } else { sand.fill(0); sandCount = 0; }
+    worldVersion++;
     committed = cp ? cp.idx : 0;
     anims = [];
   }
-  function commit() {
+  let worldVersion = 0;           // bumps whenever marbles or sand change, so the drawing can be reused until then
+  function commit(frameStart) {
     const now = logicalNow();
     const limit = now - HORIZON;
     while (committed < chunks.length && chunks[committed].k <= limit) {
       const ch = chunks[committed];
       const fresh = !everCommitted.has(ch.i) && ch.k > now - 5000;
+      // new events wait for the next frame once this one has done 8 ms of work
+      if (fresh && frameStart !== undefined && performance.now() - frameStart > 8) break;
+      worldVersion++;
       everCommitted.add(ch.i);
       const tl = fresh ? makeTimeline() : null;
       if (ch.l === 1) pop(ch, tl); else place(ch, tl);
@@ -899,6 +955,7 @@
         const anim = tl.finish(new Set(balls.map(b => b.i)));
         anim.t0 = performance.now();
         anims.push(anim);
+        animsVersion++;
       }
       committed++;
       if (committed % CHECKPOINT_EVERY === 0) {
@@ -911,11 +968,12 @@
     chunks = []; seen = new Set(); committed = 0; checkpoints = [];
     everCommitted = new Set(); balls = []; anims = [];
     sand.fill(0); sandCount = 0;
+    worldVersion++;
   }
 
   function valid(c) {
     if (!c || typeof c !== 'object') return null;
-    const { i, k, s, p } = c, col = c.c, r = c.r, l = c.l;
+    const { i, k, s, p } = c, col = c.c, r = c.r, l = c.l, t = c.t;
     if (typeof i !== 'string' || i.length > 64) return null;
     if (!Number.isFinite(k) || k < 0) return null;
     if (!Number.isInteger(col) || col < 0 || col >= MOODS.length) return null;
@@ -925,7 +983,9 @@
     if (!Array.isArray(p) || p.length !== 2) return null;
     const [x, y] = p;
     if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= GW || y < 0 || y >= GH) return null;
-    return { i, k, c: col, r, s, l, p: [x, y] };
+    const out = { i, k, c: col, r, s, l, p: [x, y] };
+    if (l === 1 && typeof t === 'string' && t.length <= 120) out.t = t;
+    return out;
   }
 
   // ---- dropping (multi-touch, hold to repeat) ----
@@ -936,13 +996,31 @@
     addChunk(ch, false);
     send(ch);
   }
-  const popping = new Set();      // marbles this screen already asked to pop
+  const popping = new Map();      // marble id -> when this screen asked to pop it (drawn bursting right away)
   function popAt(x, y, hit) {
     if (popping.has(hit.i)) return;
-    popping.add(hit.i);
-    const ch = { i: session + ':' + (seq++), k: nextKey(), c: hit.c, r: R, s: (Math.random() * 4294967296) >>> 0, l: 1, p: [x, y] };
+    popping.set(hit.i, performance.now());
+    const ch = { i: session + ':' + (seq++), k: nextKey(), c: hit.c, r: R, s: (Math.random() * 4294967296) >>> 0, l: 1, p: [x, y], t: hit.i };
     addChunk(ch, false);
     send(ch);
+  }
+  // At most one drop or pop every 250 ms per screen, so a room full of fast tappers stays smooth.
+  const ACTION_GAP = 250;
+  let lastAction = -1e9;
+  function canAct(now) {
+    if (now - lastAction < ACTION_GAP) return false;
+    lastAction = now;
+    return true;
+  }
+  // Marbles where they are drawn right now (settled or mid-fall), for tapping.
+  let onScreen = [];
+  function marbleOnScreen(x, y) {
+    let hit = null;
+    for (const b of onScreen) {
+      const dx = x - b.x, dy = y - b.y, rr = b.r + 3;
+      if (dx * dx + dy * dy <= rr * rr && (!hit || b.r < hit.r)) hit = b;
+    }
+    return hit;
   }
   function toWorld(e) {
     const rect = canvas.getBoundingClientRect();
@@ -954,11 +1032,12 @@
     if (mode !== 'play' || !canPour) return;
     e.preventDefault();
     const [x, y] = toWorld(e);
-    const hit = marbleAt(x, y);
-    if (hit) { popAt(x, y, hit); return; }   // tapped a marble: pop it into sand
+    const now = performance.now();
+    const hit = marbleOnScreen(x, y);
+    if (hit) { if (!popping.has(hit.i) && canAct(now)) popAt(x, y, hit); return; }   // tapped a marble: pop it
     try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
-    holds.set(e.pointerId, { x, y, last: performance.now() });
-    dropAt(x, y);
+    holds.set(e.pointerId, { x, y, last: now });
+    if (canAct(now)) dropAt(x, y);
   });
   canvas.addEventListener('pointermove', e => {
     const h = holds.get(e.pointerId);
@@ -1189,11 +1268,12 @@
   });
 
   // ---- falling marble sprites (one per feeling, redrawn on resize) ----
-  const SPRITE_R = R * 2.5;                // sprites are drawn this big and scaled down per marble
+  const SPRITE_R = R * 1.6;                // sprites are drawn this big and scaled down per marble
   let sprites = [], scale = 1, spriteHalf = 0;
   function buildSprites() {
+    layerKey = '';
     const pr = SPRITE_R * scale;             // sprite marble radius in canvas pixels
-    const glow = pr * 0.7;
+    const glow = pr * 0.4;
     const size = Math.ceil((pr + glow) * 2);
     spriteHalf = size / 2;
     sprites = MOODS.map((m, idx) => {
@@ -1220,7 +1300,7 @@
   function send(ch) {
     if (!fdb || !canWrite || gen === 'local' || gen === 'solo') return;
     fdb.ref('pours/' + gen + '/' + ch.i)
-      .set({ i: ch.i, k: ch.k, c: ch.c, r: ch.r, s: ch.s, l: ch.l, p: ch.p.join(',') })
+      .set(Object.assign({ i: ch.i, k: ch.k, c: ch.c, r: ch.r, s: ch.s, l: ch.l, p: ch.p.join(',') }, ch.t ? { t: ch.t } : {}))
       .catch(e => {
         if (/permission/i.test((e && (e.code || e.message)) || '')) {
           canWrite = false;
@@ -1385,16 +1465,9 @@
     canvas.height = Math.max(1, Math.round(cssH * dpr));
     scale = canvas.width / GW;
     buildSprites();
+    layerKey = '';
   }
   new ResizeObserver(fit).observe(box);
-
-  function drawMarble(c, x, y, r, alpha) {
-    const spr = sprites[c];
-    if (!spr) return;
-    const h = spriteHalf * (r / SPRITE_R);
-    ctx.globalAlpha = alpha;
-    ctx.drawImage(spr, x * scale - h, y * scale - h, h * 2, h * 2);
-  }
 
   // Sand is drawn from the grid, one pixel per grain, then scaled up without smoothing.
   const sandCanvas = document.createElement('canvas');
@@ -1402,12 +1475,12 @@
   const sctx = sandCanvas.getContext('2d');
   const sImg = sctx.createImageData(SW, SH);
   const sBuf = new Uint32Array(sImg.data.buffer);
-  function drawSand(now) {
-    const flying = anims.some(a => a.grains);
-    if (!sandCount && !flying) return;
+  let sandDrawnFor = -1;
+  function updateSand(now, flying) {
+    if (!flying && sandDrawnFor === worldVersion) return;
+    sandDrawnFor = flying ? -1 : worldVersion;
     sBuf.set(sand);
-    for (const a of anims) {
-      if (!a.grains) continue;
+    for (const a of flying) {
       const f = Math.floor((now - a.t0) / STEP_MS) - a.sandStart;
       const g = a.grains, land = g.land;
       for (let k = 0, j = 0; k < g.length; k += 5, j++) {
@@ -1421,32 +1494,73 @@
       }
     }
     sctx.putImageData(sImg, 0, 0);
-    ctx.imageSmoothingEnabled = false;
-    ctx.globalAlpha = 1;
-    ctx.drawImage(sandCanvas, 0, 0, canvas.width, canvas.height);
-    ctx.imageSmoothingEnabled = true;
   }
+
+  // Settled marbles are drawn once into a layer and reused until something changes.
+  const layer = document.createElement('canvas');
+  const lctx = layer.getContext('2d');
+  let layerKey = '';
+
+  function drawMarbleTo(g, c, x, y, r, alpha) {
+    const spr = sprites[c];
+    if (!spr) return;
+    const h = spriteHalf * (r / SPRITE_R);
+    g.globalAlpha = alpha;
+    g.drawImage(spr, x * scale - h, y * scale - h, h * 2, h * 2);
+  }
+  const drawMarble = (c, x, y, r, alpha) => drawMarbleTo(ctx, c, x, y, r, alpha);
 
   let lastCount = -1, lastEmpty = null;
   function render(now) {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const before = anims.length;
     anims = anims.filter(a => Math.floor((now - a.t0) / STEP_MS) < a.end);
-    drawSand(now);
-    // marbles that are moving, merging or falling into gaps play out their recorded frames
+    if (anims.length !== before) animsVersion++;
+    // marbles that are moving, merging, falling or bursting are drawn every frame; the rest come from the layer
     const busy = new Set();
     for (const a of anims) for (const id of a.tracks.keys()) busy.add(id);
-    // settled marbles (biggest first, so small ones sit on top)
-    const still = balls.filter(b => !busy.has(b.i)).sort((p, q) => q.r - p.r);
-    for (const b of still) drawMarble(b.c, b.x, b.y, b.r, 1);
+    for (const [id, t] of popping) { if (balls.some(b => b.i === id)) busy.add(id); else if (now - t > 4000) popping.delete(id); }
+    const key = worldVersion + ':' + animsVersion + ':' + popping.size + ':' + canvas.width;
+    if (key !== layerKey) {
+      layerKey = key;
+      if (layer.width !== canvas.width || layer.height !== canvas.height) { layer.width = canvas.width; layer.height = canvas.height; }
+      lctx.setTransform(1, 0, 0, 1, 0, 0);
+      lctx.clearRect(0, 0, layer.width, layer.height);
+      const still = balls.filter(b => !busy.has(b.i)).sort((p, q) => q.r - p.r);   // big ones first
+      for (const b of still) drawMarbleTo(lctx, b.c, b.x, b.y, b.r, 1);
+      lctx.globalAlpha = 1;
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const flying = anims.filter(a => a.grains && Math.floor((now - a.t0) / STEP_MS) - a.sandStart < 120);
+    if (sandCount || flying.length) {
+      updateSand(now, flying);
+      ctx.imageSmoothingEnabled = false;
+      ctx.globalAlpha = 1;
+      ctx.drawImage(sandCanvas, 0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = true;
+    }
+    ctx.globalAlpha = 1;
+    ctx.drawImage(layer, 0, 0);
+    const visible = balls.filter(b => !busy.has(b.i));
     for (const a of anims) {
       const f = Math.floor((now - a.t0) / STEP_MS);
-      for (const t of a.tracks.values()) {
+      for (const [id, t] of a.tracks) {
         if (f >= t.f.length) continue;
         const fr = t.f[f];
-        if (fr) drawMarble(t.c, fr[0], fr[1], fr[2], fr[3]);
+        if (!fr) continue;
+        if (popping.has(id) && balls.some(b => b.i === id)) continue;   // drawn bursting below
+        drawMarble(t.c, fr[0], fr[1], fr[2], fr[3]);
+        if (fr[3] > 0.6) visible.push({ i: id, c: t.c, x: fr[0], y: fr[1], r: fr[2] });
       }
     }
+    // marbles this screen just tapped: start bursting right away, before the pop is shared
+    for (const [id, t0] of popping) {
+      const b = balls.find(o => o.i === id);
+      if (!b) continue;
+      const k = Math.min(1, (now - t0) / 350);
+      drawMarble(b.c, b.x, b.y, b.r * (1 + 0.2 * k), 1 - 0.75 * k);
+    }
+    onScreen = visible.filter(b => !popping.has(b.i));
     // memories forming where they were tapped, before they drop
     const ln = logicalNow();
     for (let j = committed; j < chunks.length; j++) {
@@ -1471,9 +1585,9 @@
   function tick() {
     const now = performance.now();
     for (const h of holds.values()) {
-      if (now - h.last >= REPEAT_MS) { h.last = now; dropAt(h.x, h.y); }
+      if (now - h.last >= REPEAT_MS && canAct(now)) { h.last = now; dropAt(h.x, h.y); }
     }
-    commit();
+    commit(now);
     render(now);
     requestAnimationFrame(tick);
   }

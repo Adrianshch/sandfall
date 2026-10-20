@@ -27,6 +27,16 @@ Glowing cat-memory marbles instead of sand. Sixteen cat balls on offer, coloured
 
 Its drops live in Firebase at `pours/c<gen>` (the earlier nine-colour marble test used `pours/m<gen>`) and its screens report modes `mplay`/`mdisplay`, so it works under the existing rules. Both pages share `state/gen`, so Start fresh on either page clears both.
 
+
+### Memories: keeping it smooth (kids spam it)
+
+- Drawing: settled marbles are drawn once into a cached layer (`layer`, rebuilt when `worldVersion`, `animsVersion` or the popping set changes); sand is a 240x150 canvas updated only when the world changes or grains are flying. Only moving/bursting marbles draw every frame. Keep it that way.
+- Work per frame: replayed events run in full, new (animated) events stop after 8 ms of work per frame and continue next frame (`commit(frameStart)`).
+- Each screen does at most one drop or pop every 250 ms (`ACTION_GAP`); faster taps are ignored on purpose.
+- Pops carry the tapped marble's id (`t`) so they hit the marble the child saw, even mid-fall; the tapped marble starts bursting on that screen immediately (`popping`).
+- Touching same-kind marbles always combine (nearest open spot above, else dropped from the top; if the box is full they stay apart). After every roll the marble is pushed out of neighbours and, if still wedged, moved to the nearest clear spot in fixed directions; grains it was nudged into are moved over its top (`shiftSandOut`).
+- Physics tests live in the conversation scratchpad, not the repo; when changing physics, re-check that shuffled arrival orders give identical marbles and sand, and that nothing overlaps.
+
 ## Files
 
 - `index.html`: the whole game (HTML, CSS and JS in one file).
