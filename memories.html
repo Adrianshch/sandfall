@@ -391,7 +391,6 @@
   // and plain arithmetic (+ - * / sqrt), so all screens agree to the last digit.
   const GW = 480, GH = 300;      // shared world, in world units
   const R = 18;                  // marble radius
-  const D = R * 2, D2 = D * D;
   const G = 0.25;                // gravity per step (one step = 1/60 s)
   const VMAX = 9;
   const BOUNCE = 0.3;
@@ -454,78 +453,53 @@
   }
 
   // ---- deterministic marble physics ----
-  // Settled marbles never move again; each new one falls, bounces and rolls
-  // over them until it comes to rest.
-  let balls = [];                 // {x, y, c, i}
-  let cells = new Map();          // grid of settled marbles, cell size D
-  const cellKey = (cx, cy) => cy * 1024 + cx;
-  function addToGrid(idx) {
-    const b = balls[idx];
-    const k = cellKey(Math.floor(b.x / D), Math.floor(b.y / D));
-    let list = cells.get(k);
-    if (!list) { list = []; cells.set(k, list); }
-    list.push(idx);
-  }
-  function rebuildGrid() {
-    cells = new Map();
-    for (let i = 0; i < balls.length; i++) addToGrid(i);
-  }
-  function overlapsAny(x, y) {
-    const cx = Math.floor(x / D), cy = Math.floor(y / D);
-    for (let gy = cy - 1; gy <= cy + 1; gy++) {
-      if (gy < 0) continue;
-      for (let gx = cx - 1; gx <= cx + 1; gx++) {
-        const list = cells.get(cellKey(gx, gy));
-        if (!list) continue;
-        for (const j of list) {
-          const dx = x - balls[j].x, dy = y - balls[j].y;
-          if (dx * dx + dy * dy < D2) return true;
-        }
-      }
+  // A new marble falls, bounces and rolls until it rests. If it rests touching a marble of the
+  // same kind, and a marble with both of their areas fits there, the two become one bigger
+  // marble. Marbles left hanging then drop into the gap, which can set off more merges.
+  // Settled marbles never move otherwise. Only seeded random numbers, + - * / and Math.sqrt
+  // are used, so every screen gets exactly the same pile.
+  let balls = [];                 // {x, y, r, c, i (id), n (memories inside)}
+  const TOUCH = 0.5;              // how close counts as touching
+
+  function overlapsAny(x, y, r, skipA, skipB) {
+    for (const b of balls) {
+      if (b === skipA || b === skipB) continue;
+      const dx = x - b.x, dy = y - b.y, rr = r + b.r - 0.01;
+      if (dx * dx + dy * dy < rr * rr) return true;
     }
     return false;
   }
-  function settle(ch, path) {
-    const rand = rng32(ch.s);
-    let x = Math.min(GW - R, Math.max(R, ch.p[0]));
-    let y = Math.min(GH - R, Math.max(R, ch.p[1]));
-    if (overlapsAny(x, y)) y = -R;          // tapped inside the pile: drop from the top instead
-    let vx = (rand() - 0.5) * 0.6, vy = 0;
-    let calm = 0;
+
+  // Moves `ball` from (x, y) until it rests, then adds it to `balls` if it is inside the box.
+  function roll(ball, x, y, vx, path) {
+    const r = ball.r;
+    let vy = 0, calm = 0;
     for (let step = 0; step < MAX_STEPS; step++) {
       vy = Math.min(vy + G, VMAX);
       x += vx; y += vy;
       let touching = false, floor = false, wall = false, contacts = 0, lastNx = 0;
-      if (x < R) { x = R; if (vx < 0) vx = -vx * BOUNCE; touching = wall = true; }
-      else if (x > GW - R) { x = GW - R; if (vx > 0) vx = -vx * BOUNCE; touching = wall = true; }
-      if (y > GH - R) { y = GH - R; if (vy > 0) vy = -vy * BOUNCE; touching = floor = true; }
-      const cx = Math.floor(x / D), cy = Math.floor(y / D);
-      for (let gy = cy - 1; gy <= cy + 1; gy++) {
-        if (gy < 0) continue;
-        for (let gx = cx - 1; gx <= cx + 1; gx++) {
-          const list = cells.get(cellKey(gx, gy));
-          if (!list) continue;
-          for (const j of list) {
-            const b = balls[j];
-            let dx = x - b.x, dy = y - b.y;
-            let d2 = dx * dx + dy * dy;
-            if (d2 >= D2) continue;
-            if (d2 < 1e-9) { dx = 0.01; dy = -1; d2 = 1.0001; }
-            const d = Math.sqrt(d2);
-            const nx = dx / d, ny = dy / d;
-            x = b.x + nx * D; y = b.y + ny * D;
-            const vn = vx * nx + vy * ny;
-            if (vn < 0) { vx -= (1 + BOUNCE) * vn * nx; vy -= (1 + BOUNCE) * vn * ny; }
-            touching = true;
-            contacts++;
-            lastNx = nx;
-          }
-        }
+      if (x < r) { x = r; if (vx < 0) vx = -vx * BOUNCE; touching = wall = true; }
+      else if (x > GW - r) { x = GW - r; if (vx > 0) vx = -vx * BOUNCE; touching = wall = true; }
+      if (y > GH - r) { y = GH - r; if (vy > 0) vy = -vy * BOUNCE; touching = floor = true; }
+      for (const b of balls) {
+        const D = r + b.r;
+        let dx = x - b.x, dy = y - b.y;
+        let d2 = dx * dx + dy * dy;
+        if (d2 >= D * D) continue;
+        if (d2 < 1e-9) { dx = 0.01; dy = -1; d2 = 1.0001; }
+        const d = Math.sqrt(d2);
+        const nx = dx / d, ny = dy / d;
+        x = b.x + nx * D; y = b.y + ny * D;
+        const vn = vx * nx + vy * ny;
+        if (vn < 0) { vx -= (1 + BOUNCE) * vn * nx; vy -= (1 + BOUNCE) * vn * ny; }
+        touching = true;
+        contacts++;
+        lastNx = nx;
       }
       // A push off a neighbour can nudge a marble into a wall: keep it inside.
-      if (x < R) { x = R; if (vx < 0) vx = 0; wall = true; }
-      else if (x > GW - R) { x = GW - R; if (vx > 0) vx = 0; wall = true; }
-      if (y > GH - R) { y = GH - R; if (vy > 0) vy = 0; floor = true; }
+      if (x < r) { x = r; if (vx < 0) vx = 0; wall = true; }
+      else if (x > GW - r) { x = GW - r; if (vx > 0) vx = 0; wall = true; }
+      if (y > GH - r) { y = GH - r; if (vy > 0) vy = 0; floor = true; }
       if (touching) { vx *= DRAG; vy *= DRAG; }
       // Balanced on top of a single marble: keep rolling off it.
       const perched = contacts === 1 && !floor && !wall;
@@ -535,12 +509,138 @@
         if (++calm >= 12) break;
       } else calm = 0;
     }
-    const kept = y >= R - 0.5;               // a marble resting above the box overflows
-    if (kept) {
-      balls.push({ x, y, c: ch.c, i: ch.i });
-      addToGrid(balls.length - 1);
-    }
+    ball.x = x; ball.y = y;
+    const kept = y >= r - 0.5;               // a marble resting above the box overflows
+    if (kept) balls.push(ball);
     return kept;
+  }
+
+  // Resting on the floor, on two marbles below it, or on one marble and a wall.
+  function supported(b) {
+    if (b.y >= GH - b.r - TOUCH) return true;
+    const wall = b.x <= b.r + TOUCH || b.x >= GW - b.r - TOUCH;
+    let below = 0;
+    for (const o of balls) {
+      if (o === b || o.y <= b.y) continue;
+      const D = b.r + o.r + TOUCH, dx = b.x - o.x, dy = b.y - o.y;
+      if (dx * dx + dy * dy <= D * D) below++;
+    }
+    return below >= 2 || (wall && below >= 1);
+  }
+
+  // The first same-kind marble touching `a`, and a spot where their combined marble fits.
+  function findMerge(a) {
+    let b = null;
+    for (const o of balls) {
+      if (o === a || o.c !== a.c) continue;
+      const D = a.r + o.r + TOUCH, dx = a.x - o.x, dy = a.y - o.y;
+      if (dx * dx + dy * dy <= D * D) { b = o; break; }
+    }
+    if (!b) return null;
+    const A1 = a.r * a.r, A2 = b.r * b.r;
+    const r = Math.sqrt(A1 + A2);             // same total area, like agar.io
+    if (r * 2 > GH || r * 2 > GW) return null;
+    const x = Math.min(GW - r, Math.max(r, (a.x * A1 + b.x * A2) / (A1 + A2)));
+    const y = Math.min(GH - r, (a.y * A1 + b.y * A2) / (A1 + A2));
+    for (let lift = 0; lift <= r; lift += 1) { // the meeting point, or a little above it
+      const ty = y - lift;
+      if (ty < r) break;
+      if (!overlapsAny(x, ty, r, a, b)) return { a, b, x, y: ty, r };
+    }
+    return null;
+  }
+
+  const byLowestFirst = (p, q) => q.y - p.y || (p.i < q.i ? -1 : p.i > q.i ? 1 : 0);
+
+  // Drops one marble and plays out everything it sets off. `tl` records the motion for animation.
+  function place(ch, tl) {
+    const rand = rng32(ch.s);
+    const x = Math.min(GW - R, Math.max(R, ch.p[0]));
+    let y = Math.min(GH - R, Math.max(R, ch.p[1]));
+    if (overlapsAny(x, y, R)) y = -R;        // tapped inside the pile: drop from the top instead
+    const ball = { x, y, r: R, c: ch.c, i: ch.i, n: 1 };
+    const path = tl ? [] : null;
+    const kept = roll(ball, x, y, (rand() - 0.5) * 0.6, path);
+    if (tl) tl.drop(ball, path, kept);
+    if (!kept) return;
+    const queue = [ball];
+    let made = 0, guard = 0;
+    while (queue.length && guard++ < 80) {
+      const a = queue.shift();
+      if (!balls.includes(a)) continue;
+      const mg = findMerge(a);
+      if (!mg) continue;
+      balls = balls.filter(o => o !== mg.a && o !== mg.b);
+      const m = { x: mg.x, y: mg.y, r: mg.r, c: a.c, i: ch.i + '/' + (++made), n: mg.a.n + mg.b.n };
+      if (tl) tl.merge(mg.a, mg.b, m);
+      const p2 = tl ? [] : null;
+      if (roll(m, m.x, m.y, 0, p2)) queue.push(m);
+      if (tl) tl.move(m, p2);
+      // marbles left hanging drop into the gap
+      for (let round = 0; round < 6; round++) {
+        const loose = balls.filter(o => !supported(o)).sort(byLowestFirst);
+        if (!loose.length) break;
+        const moves = [];
+        for (const o of loose) {
+          if (!balls.includes(o) || supported(o)) continue;
+          const sx = o.x, sy = o.y;
+          balls = balls.filter(q => q !== o);
+          const p3 = tl ? [] : null;
+          if (roll(o, sx, sy, 0, p3)) queue.push(o);
+          if (tl) moves.push([o, p3, sx, sy]);
+        }
+        if (tl) tl.moveTogether(moves);
+      }
+    }
+  }
+
+  // ---- animation timeline for one drop (frames at 60 fps) ----
+  function makeTimeline() {
+    const tracks = new Map();     // id -> {c, f: [[x, y, r, alpha], ...]} indexed by frame
+    let T = 0;
+    const tr = b => { let t = tracks.get(b.i); if (!t) { t = { c: b.c, f: [] }; tracks.set(b.i, t); } return t; };
+    function put(b, f, x, y, r, a) {
+      const t = tr(b);
+      if (t.f.length && f > t.f.length) { const last = t.f[t.f.length - 1]; for (let k = t.f.length; k < f; k++) t.f[k] = last; }
+      t.f[f] = [x, y, r, a];
+    }
+    // a settled marble shows where it was until the moment it moves
+    function holdUntil(b, x, y, f) {
+      if (!tracks.has(b.i)) for (let k = 0; k < f; k++) put(b, k, x, y, b.r, 1);
+      else put(b, f, x, y, b.r, 1);
+    }
+    function path(b, p, from) {
+      for (let k = 0; k < p.length; k += 2) put(b, from + k / 2, p[k], p[k + 1], b.r, 1);
+      return p.length / 2;
+    }
+    return {
+      drop(b, p, kept) {
+        T = path(b, p, 0);
+        if (!kept) { const [x, y] = [p[p.length - 2], p[p.length - 1]]; for (let k = 0; k < 24; k++) put(b, T + k, x, y, b.r, 1 - k / 24); }
+      },
+      merge(a, b, m) {
+        holdUntil(a, a.x, a.y, T);
+        holdUntil(b, b.x, b.y, T);
+        for (let k = 1; k <= 8; k++) {        // the two slide together and fade
+          const t = k / 8;
+          put(a, T + k, a.x + (m.x - a.x) * t, a.y + (m.y - a.y) * t, a.r, 1 - t * 0.7);
+          put(b, T + k, b.x + (m.x - b.x) * t, b.y + (m.y - b.y) * t, b.r, 1 - t * 0.7);
+        }
+        for (let k = 0; k <= 8; k++) put(m, T + 4 + k, m.x, m.y, m.r * (0.55 + 0.45 * k / 8), 0.4 + 0.6 * k / 8);
+        T += 12;
+      },
+      move(m, p) { T += path(m, p, T); },
+      moveTogether(list) {
+        let longest = 0;
+        for (const [o, p, sx, sy] of list) { holdUntil(o, sx, sy, T); longest = Math.max(longest, path(o, p, T)); }
+        T += longest;
+      },
+      finish(alive) {
+        const end = T + 1;
+        for (const [id, t] of tracks) if (alive.has(id) && t.f.length) put({ i: id, c: t.c }, end, ...t.f[t.f.length - 1]);
+        return { tracks, end };
+      },
+    };
   }
 
   // ---- ordered drop log ----
@@ -548,7 +648,7 @@
   let chunks = [], seen = new Set(), committed = 0, checkpoints = [];
   let everCommitted = new Set();
   let lastKey = 0, skew = 0, clockOffset = 0;
-  let anims = new Map();          // id -> {path, t0, kept, c}
+  let anims = [];                 // [{t0, end, tracks}]
 
   const logicalNow = () => Date.now() + clockOffset + skew;
   function nextKey() {
@@ -561,6 +661,7 @@
     if (ahead > skew) skew = Math.min(60000, ahead);
   }
   function cmp(a, b) { return a.k - b.k || (a.i < b.i ? -1 : a.i > b.i ? 1 : 0); }
+  const copyBalls = list => list.map(b => ({ ...b }));
 
   function addChunk(ch, remote) {
     if (seen.has(ch.i)) return;
@@ -574,10 +675,9 @@
   function rollback(idx) {
     while (checkpoints.length && checkpoints[checkpoints.length - 1].idx > idx) checkpoints.pop();
     const cp = checkpoints[checkpoints.length - 1];
-    balls = cp ? cp.balls.slice() : [];
+    balls = cp ? copyBalls(cp.balls) : [];
     committed = cp ? cp.idx : 0;
-    rebuildGrid();
-    anims.clear();
+    anims = [];
   }
   function commit() {
     const now = logicalNow();
@@ -586,19 +686,23 @@
       const ch = chunks[committed];
       const fresh = !everCommitted.has(ch.i) && ch.k > now - 5000;
       everCommitted.add(ch.i);
-      const path = fresh ? [] : null;
-      const kept = settle(ch, path);
-      if (fresh) anims.set(ch.i, { path, t0: performance.now(), kept, c: ch.c });
+      const tl = fresh ? makeTimeline() : null;
+      place(ch, tl);
+      if (tl) {
+        const anim = tl.finish(new Set(balls.map(b => b.i)));
+        anim.t0 = performance.now();
+        anims.push(anim);
+      }
       committed++;
       if (committed % CHECKPOINT_EVERY === 0) {
-        checkpoints.push({ idx: committed, balls: balls.slice() });
+        checkpoints.push({ idx: committed, balls: copyBalls(balls) });
         if (checkpoints.length > 40) checkpoints.shift();
       }
     }
   }
   function resetLog() {
     chunks = []; seen = new Set(); committed = 0; checkpoints = [];
-    everCommitted = new Set(); balls = []; anims.clear(); rebuildGrid();
+    everCommitted = new Set(); balls = []; anims = [];
   }
 
   function valid(c) {
@@ -872,9 +976,10 @@
   });
 
   // ---- falling marble sprites (one per feeling, redrawn on resize) ----
+  const SPRITE_R = R * 2.5;                // sprites are drawn this big and scaled down per marble
   let sprites = [], scale = 1, spriteHalf = 0;
   function buildSprites() {
-    const pr = R * scale;                    // marble radius in canvas pixels
+    const pr = SPRITE_R * scale;             // sprite marble radius in canvas pixels
     const glow = pr * 0.7;
     const size = Math.ceil((pr + glow) * 2);
     spriteHalf = size / 2;
@@ -1070,10 +1175,10 @@
   }
   new ResizeObserver(fit).observe(box);
 
-  function drawMarble(c, x, y, alpha, size) {
+  function drawMarble(c, x, y, r, alpha) {
     const spr = sprites[c];
     if (!spr) return;
-    const h = spriteHalf * (size || 1);
+    const h = spriteHalf * (r / SPRITE_R);
     ctx.globalAlpha = alpha;
     ctx.drawImage(spr, x * scale - h, y * scale - h, h * 2, h * 2);
   }
@@ -1082,36 +1187,38 @@
   function render(now) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // settled marbles (skipping ones still on their way down)
-    for (const b of balls) if (!anims.has(b.i)) drawMarble(b.c, b.x, b.y, 1);
-    // marbles falling along their computed path
-    for (const [id, a] of anims) {
-      const n = a.path.length / 2;
+    // marbles that are moving, merging or falling into gaps play out their recorded frames
+    const busy = new Set();
+    anims = anims.filter(a => Math.floor((now - a.t0) / STEP_MS) < a.end);
+    for (const a of anims) for (const id of a.tracks.keys()) busy.add(id);
+    // settled marbles (biggest first, so small ones sit on top)
+    const still = balls.filter(b => !busy.has(b.i)).sort((p, q) => q.r - p.r);
+    for (const b of still) drawMarble(b.c, b.x, b.y, b.r, 1);
+    for (const a of anims) {
       const f = Math.floor((now - a.t0) / STEP_MS);
-      if (f >= n) {
-        if (!a.kept && f < n + 30) { drawMarble(a.c, a.path[a.path.length - 2], a.path[a.path.length - 1], 1 - (f - n) / 30); continue; }
-        anims.delete(id);
-        if (a.kept) { const b = balls.find(x => x.i === id); if (b) drawMarble(b.c, b.x, b.y, 1); }
-        continue;
+      for (const t of a.tracks.values()) {
+        if (f >= t.f.length) continue;
+        const fr = t.f[f];
+        if (fr) drawMarble(t.c, fr[0], fr[1], fr[2], fr[3]);
       }
-      drawMarble(a.c, a.path[f * 2], a.path[f * 2 + 1], 1);
     }
     // memories forming where they were tapped, before they drop
     const ln = logicalNow();
     for (let j = committed; j < chunks.length; j++) {
       const ch = chunks[j];
       const t = Math.max(0, Math.min(1, (ln - ch.k) / HORIZON));
-      drawMarble(ch.c, ch.p[0], Math.min(GH - R, Math.max(R, ch.p[1])), 0.25 + 0.6 * t, 0.35 + 0.65 * t);
+      drawMarble(ch.c, ch.p[0], Math.min(GH - R, Math.max(R, ch.p[1])), R * (0.35 + 0.65 * t), 0.25 + 0.6 * t);
     }
     ctx.globalAlpha = 1;
-    const count = balls.length;
+    let count = 0;
+    for (const b of balls) count += b.n;
     if (count !== lastCount) {
       lastCount = count;
       const t = count.toLocaleString() + (count === 1 ? ' memory' : ' memories');
       $('count').textContent = t;
       $('dcount').textContent = t;
     }
-    const empty = count === 0 && anims.size === 0 && committed === chunks.length;
+    const empty = balls.length === 0 && anims.length === 0 && committed === chunks.length;
     if (empty !== lastEmpty) { lastEmpty = empty; $('empty').hidden = !empty; }
   }
 
