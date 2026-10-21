@@ -7,7 +7,12 @@ Shared classroom falling-sand game, hosted on GitHub Pages and synced through Fi
 The `main` branch is the website. GitHub Pages republishes it within a minute or two of every push.
 
 - Repo: https://github.com/Adrianshch/sandfall
-- Site: https://adrianshch.github.io/sandfall/ (`#play`, `#display`, `#teacher-CODE`)
+- Site, each page with `#play`, `#display`, `#teacher-CODE`:
+  - Sandfall (v2 sand game): https://adrianshch.github.io/sandfall/sandfall/ — source `sandfall/index.html`
+  - Cat Memories (v5 ball game): https://adrianshch.github.io/sandfall/cat-memories/ — source `cat-memories/index.html`
+  - Cat Emotions Tube (v4): https://adrianshch.github.io/sandfall/slide.html
+- The root `index.html` and `memories.html` only forward old links (keeping the `#...` part) to `sandfall/` and `cat-memories/`. Edit the pages in the folders, not these.
+- Pages in folders load shared files with `../` (`../config.js`, `../images/...`).
 
 After a change the user asked for: check it, commit with a short message, then `git push`. Then tell the user the site will update in a minute or two at the GitHub Pages address.
 
@@ -27,7 +32,7 @@ Named versions are git tags (`git tag -l`). When the user says "save this as ver
 
 To go back to a version, restore its files onto `main` with a new commit (`git checkout vN -- .` then commit and push) instead of rewriting history, so the site and every later version stay intact.
 
-## Cat Emotions experiment (`memories.html`, page title "Cat Emotions")
+## Cat Memories ball game (`cat-memories/index.html`, page title "Cat Emotions"; was `memories.html`)
 
 Glowing cat-memory marbles instead of sand. Sixteen cat balls on offer, coloured by the mood meter (pleasant + calm green, pleasant + energetic yellow, unpleasant + calm blue, unpleasant + energetic red; each ball its own shade within its family): a main row of five (`PICKER`: Happy, Sad, Scared, Confused, Calm) plus a More button that opens a scrollable side panel listing every cat, starters included, grouped under colour headings (`MORE_GROUPS`: yellow Happy, Excited, Curious, Silly, Hungry; green Calm, Chill, Focused; blue Sad, Confused, Bored, Tired; red Scared, Angry, Nervous, Upset). Panel copies of starter buttons get ids ending in `-more`. Worried (id 15) and Playful (id 13) are retired from the panel but stay in `MOODS` so old drops still draw. When adding a cat, pick its quadrant and a new shade in that family. Hungry uses a still frame of the tongue-out cat; Playful (id 13) used the same cat and is left out of the panel but kept in `MOODS` so old drops still draw. `MOODS` index is the colour id stored in drops, so never reorder or remove entries; add new ones at the end. Cat photos live in `images/cat-*.webp`: the cat is cut out of its photo with macOS Vision subject lifting (transparent background), then the face is cropped, bulged like seen through glass and cut to a circle. `paintMarble` fills behind the cat with a light wash of the ball's colour and adds edge shading and glints; the cat itself is not tinted. GitHub Pages lets browsers cache files for 10 minutes, so whenever a cat picture changes, bump `ASSET_V` in memories.html (image URLs carry `?v=ASSET_V`), and tell the user a hard refresh (Cmd+Shift+R) shows the update immediately. Calm uses the sleeping kitten because the user's preferred calm photos were watermarked. Drawn faces (`faceSvg`) remain available for any marble without a photo. Never use watermarked stock photos (Adobe Stock, Shutterstock, etc.), product photos, or professional photos of trademarked celebrity pets (e.g. Grumpy Cat) on the public site. Same modes (`memories.html#play`, `#display`, `#teacher-CODE`). Same sync design: ordered drop log, commit horizon, checkpoints and rollback. Marble settling (`settle`) must stay deterministic like sand placement: seeded `rng32`, plain arithmetic and `Math.sqrt` only. Marbles push each other (`simulate`): settled marbles sleep; moving ones fall, bounce and roll, and a hit harder than `WAKE_V` (scaled by weight, capped at 2x) wakes a sleeping marble so it gets knocked along. Moving pairs share pushes by weight, except a marble pinned against the floor or a wall doesn't give way (`shares`, `pinned`). After each event `playOut` repeats: wake marbles near spots where something left that lost support, simulate, pour loose sand, then a whole-box cleanup (`relaxAll`) pushes every overlapping pair apart, then any touching same-kind pair combines (`anyMerge`), until nothing changes. Merging (`place`, `findMerge`): when a marble comes to rest touching a same-kind marble, and a marble with their combined area (r = sqrt(r1^2 + r2^2), agar.io style) fits at their area-weighted centre or up to one radius above it without overlapping anything, the two are replaced by that bigger marble, which then rolls to rest. Marbles left unsupported then drop into the gap (`supported`: floor, two marbles below, or one below plus a wall), and anything that comes to rest is checked for merges again, so chains can happen. Balls have their own radius `r` and memory count `n`; the counter shows total memories. Popping (`pop`): a drop log entry with `l: 1` is a tap at `p`; it removes the smallest marble under that point and turns about half its area into sand (fine 1-unit grains in a 480x300 grid, `sand`; each pop's grains run light tint -> marble colour -> deep shade in soft wavy bands via `sandPalette`/`grainColour`, plain arithmetic only), scattered up to 1.2 radii and poured grain by grain (`pourGrain`) through open cells only, so sand never appears in sealed space. Marbles collide with sand grains, rest on them, and sand left hanging pours down (`pourLooseSand`). After anything is removed or moves, only marbles near that spot are rechecked for support (`dropLoose` with `gone` spots); never recheck every marble on every event (it was 5x slower). Checkpoints store the sand grid too. New drops have radius 18. Each live drop records a frame timeline (`makeTimeline`) for animation; replays don't animate. Checkpoints deep-copy balls because settling mutates them.
 
@@ -56,7 +61,10 @@ Same cats, picker, sharing and modes as `memories.html`, but the world is a sing
 
 ## Files
 
-- `index.html`: the whole game (HTML, CSS and JS in one file).
+- `sandfall/index.html`: the sand game (HTML, CSS and JS in one file).
+- `cat-memories/index.html`: the cat ball game.
+- `slide.html`: the cat tube.
+- `index.html`, `memories.html`: forwarders for old links.
 - `config.js`: public Firebase settings. Fine to commit.
 - `database.rules.json`: template for the Firebase security rules. Ignored by git on purpose: the user puts their teacher code into the copy in the Firebase console, never in the repo. If the rules change, tell the user to paste the new version into Firebase and re-enter their code.
 - `README.md`: setup guide for teachers.

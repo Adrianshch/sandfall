@@ -1,0 +1,1890 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cat Emotions</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@500&family=Oswald:wght@600&display=swap">
+<style>
+  [hidden] { display: none !important; }
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; font-size: 14px; }
+
+  /* Layout: header row, one shared memory box scaled to fit (same 480x300 world on every screen), then the marble picker (play) or a quiet footer (display). */
+  :root {
+    --bg: #e4e9ed;
+    --sky: #f3f6f8;
+    --box: #fbfcfd;
+    --ink: #1c2530;
+    --muted: #5a6876;
+    --surface: rgba(255, 255, 255, 0.82);
+    --line: rgba(28, 37, 48, 0.12);
+    --accent: #b8612a;
+    --live: #2f9e6a;
+    --warn: #b5482f;
+    --shadow: 0 10px 30px rgba(28, 37, 48, 0.14);
+    --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --font-label: "Oswald", "Arial Narrow", "Helvetica Neue", sans-serif-condensed, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10151b; --sky: #1a222b; --box: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
+      --surface: rgba(24, 31, 39, 0.84); --line: rgba(232, 237, 242, 0.12);
+      --accent: #e59a5e; --live: #4cc48c; --warn: #f07a5e; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151b; --sky: #1a222b; --box: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
+    --surface: rgba(24, 31, 39, 0.84); --line: rgba(232, 237, 242, 0.12);
+    --accent: #e59a5e; --live: #4cc48c; --warn: #f07a5e; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+
+  html, body { height: 100%; }
+  body {
+    background: linear-gradient(to bottom, var(--sky), var(--bg)) var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .app {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-block: 14px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    box-sizing: border-box;
+  }
+
+  .top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .mark { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .mark h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.5rem;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .beta {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    padding: 2px 6px 1px;
+  }
+  .mark p { margin: 0; font-size: 0.82rem; color: var(--muted); }
+  .notice { margin: 0; font-size: 0.82rem; font-weight: 600; color: var(--warn); }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 12px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .status.live .dot { background: var(--live); box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 25%, transparent); }
+  .status.live { color: var(--ink); }
+
+  .box {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    place-items: center;
+  }
+  canvas {
+    display: block;
+    max-width: 100%;
+    background: var(--box);
+    border-radius: 14px;
+    box-shadow: 0 0 0 1px var(--line), var(--shadow);
+    touch-action: none;
+  }
+  body[data-mode="play"] canvas { cursor: pointer; }
+  .empty {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    text-align: center;
+    padding: 24px;
+  }
+  .empty p {
+    margin: 0;
+    max-width: 30ch;
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: clamp(1rem, 2.4vw, 1.6rem);
+    line-height: 1.3;
+    color: var(--muted);
+    text-wrap: balance;
+  }
+
+  .dock {
+    align-self: center;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px 14px;
+    padding: 10px 12px 8px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .moods {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 90px));
+    gap: 6px;
+    align-items: start;
+  }
+  .mood {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 6px 2px 4px;
+    background: none;
+    border: 0;
+    border-radius: 12px;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  /* Each picker marble is drawn on a canvas (same look as the falling ones); CSS adds the glow. */
+  .orb {
+    display: block;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    box-shadow: 0 0 14px 2px color-mix(in srgb, var(--c) 55%, transparent);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .mood .label {
+    font: 600 var(--fs, 0.66rem) / 1 var(--font-label);
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    color: var(--muted);
+  }
+  .mood:hover .orb { transform: translateY(-2px); }
+  .mood[aria-pressed="true"] .orb {
+    transform: translateY(-3px) scale(1.12);
+    box-shadow: 0 0 26px 8px color-mix(in srgb, var(--c) 75%, transparent);
+  }
+  .mood[aria-pressed="true"] .label { color: var(--ink); }
+  .mood:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* More: a dashed ring with a plus, or the chosen side-panel marble */
+  .more .ring {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    box-sizing: border-box;
+    border: 2px dashed var(--muted);
+    transition: transform 0.15s ease;
+  }
+  .more .plus { font: 600 1.9rem/1 var(--font-display); color: var(--muted); }
+  .more .ring .orb { position: absolute; inset: -2px; width: 72px; height: 72px; }
+  .more[aria-pressed="true"] .ring { border-color: transparent; }
+  .more[aria-pressed="true"] .orb { transform: translateY(-3px) scale(1.12); box-shadow: 0 0 26px 8px color-mix(in srgb, var(--c) 75%, transparent); }
+  .more:hover .ring { transform: translateY(-2px); }
+
+  .scrim { position: fixed; inset: 0; z-index: 20; background: rgba(10, 14, 20, 0.28); }
+  .panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 21;
+    width: min(300px, 84vw);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    box-shadow: -12px 0 30px rgba(0, 0, 0, 0.22);
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    transform: translateX(105%);
+    visibility: hidden;
+    transition: transform 0.25s ease, visibility 0.25s;
+  }
+  .panel.open { transform: none; visibility: visible; }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 16px 8px;
+  }
+  .panel-head h2 { margin: 0; font: 700 1.15rem var(--font-display); }
+  .close {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    font: 400 1.5rem/1 var(--font-body);
+    cursor: pointer;
+  }
+  .close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .panel-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 14px 8px;
+    padding: 8px 16px 24px;
+  }
+  .panel-list .orb { width: 96px; height: 96px; }
+  .panel-list .label { font-size: 0.78rem; }
+  .panel-list .group {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0 -4px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .panel-list .group:first-child { margin-top: 0; }
+  .panel-list .group b { color: var(--ink); font-weight: 700; }
+  .panel-list .swatch { width: 12px; height: 12px; border-radius: 50%; background: var(--c); flex: none; }
+
+  .build { font-size: 0.62rem; color: var(--muted); opacity: 0.7; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .count {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    padding-inline: 4px;
+  }
+
+  .foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .teacher { display: flex; gap: 8px; opacity: 0.55; transition: opacity 0.2s ease; }
+  .teacher:hover, .teacher:focus-within { opacity: 1; }
+  .btn {
+    font: 600 0.8rem var(--font-body);
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--muted); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn.armed { color: var(--warn); border-color: var(--warn); }
+
+  body[data-mode="display"] .mark h1 { font-size: 1.25rem; }
+
+  @media (max-width: 760px) {
+    .dock { width: 100%; }
+    .moods { grid-template-columns: repeat(6, minmax(0, 1fr)); width: 100%; gap: 2px; }
+    .moods .orb, .more .ring, .more .ring .orb { width: 54px; height: 54px; }
+    .moods .label { font-size: 0.56rem; }
+  }
+  @media (max-width: 480px) {
+    .mark h1 { font-size: 1.25rem; }
+    .hint-wide { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .orb, .teacher, .panel, .more .ring { transition: none; }
+  }
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="../config.js"></script>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div class="mark">
+      <h1>Cat Emotions <span class="beta">experiment</span></h1>
+      <p id="hint"></p>
+      <p class="notice" id="notice" hidden></p>
+    </div>
+    <span class="status" id="status"><span class="dot"></span><span id="statusText">Connecting…</span></span>
+  </header>
+
+  <main class="box" id="box">
+    <canvas id="world"></canvas>
+    <div class="empty" id="empty"><p id="emptyText"></p></div>
+  </main>
+
+  <div class="dock" id="dock">
+    <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
+    <span class="count" id="count">0 memories</span>
+    <span class="build" title="Version of this page">build 2026-10-21c</span>
+  </div>
+
+  <footer class="foot" id="foot" hidden>
+    <span class="count" id="dcount">0 memories</span>
+    <span class="build" title="Version of this page">build 2026-10-21c</span>
+    <div class="teacher">
+      <button class="btn" id="fs" type="button">Full screen</button>
+      <button class="btn" id="fresh" type="button" hidden>Start fresh</button>
+    </div>
+  </footer>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="panel" id="panel" aria-label="More cat memories" aria-hidden="true">
+  <div class="panel-head">
+    <h2>More memories</h2>
+    <button class="close" id="closeMore" type="button" aria-label="Close">&times;</button>
+  </div>
+  <div class="panel-list" id="moreList" role="group" aria-label="More cat memories"></div>
+</aside>
+
+<script>
+(() => {
+  // Every screen rebuilds the same pile from the same ordered list of drops.
+  // A drop is a tap position plus a seed. Settling a marble uses only that seed
+  // and plain arithmetic (+ - * / sqrt), so all screens agree to the last digit.
+  const GW = 480, GH = 300;      // shared world, in world units
+  const R = 18;                  // marble radius
+  const G = 0.25;                // gravity per step (one step = 1/60 s)
+  const VMAX = 9;
+  const BOUNCE = 0.3;
+  const DRAG = 0.97;             // speed kept per step while touching something
+  const MAX_STEPS = 300;
+  const HORIZON = 300;           // ms a drop waits before it settles, so late arrivals can slot in
+  const REPEAT_MS = 350;         // holding drops a marble this often
+  const CHECKPOINT_EVERY = 10;
+  const STEP_MS = 1000 / 60;
+
+  // Cat memories. The array index is what drops store, so existing entries keep their
+  // place and new ones go on the end.
+  // Bump this whenever a cat picture changes, so browsers fetch the new one instead of a saved copy.
+  const ASSET_V = '2026-10-20d';
+
+  // Colours follow the mood meter: pleasant + calm = green, pleasant + high energy = yellow,
+  // unpleasant + calm = blue, unpleasant + high energy = red. Each ball gets its own shade.
+  const MOODS = [
+    { name: 'Curious',  hex: '#f4d35e', img: '../images/cat-curious.webp' },   // yellow
+    { name: 'Angry',    hex: '#c1121f', img: '../images/cat-angry.webp' },     // red
+    { name: 'Sad',      hex: '#1d4e89', img: '../images/cat-sad.webp' },       // blue
+    { name: 'Happy',    hex: '#ffd60a', img: '../images/cat-happy2.webp' },    // yellow
+    { name: 'Scared',   hex: '#e5383b', img: '../images/cat-scared.webp' },    // red
+    { name: 'Calm',     hex: '#40916c', img: '../images/cat-calm.webp' },      // green
+    { name: 'Confused', hex: '#4ea8de', img: '../images/cat-confused.webp' },  // blue
+    { name: 'Excited',  hex: '#ffb703', img: '../images/cat-excited.webp' },   // yellow
+    { name: 'Hungry',   hex: '#fcbf49', img: '../images/cat-hungry.webp' },    // yellow
+    { name: 'Silly',    hex: '#ffe066', img: '../images/cat-silly.webp' },     // yellow
+    { name: 'Upset',    hex: '#ff4d6d', img: '../images/cat-upset.webp' },     // red
+    { name: 'Bored',    hex: '#6c8ebf', img: '../images/cat-bored.webp' },     // blue
+    { name: 'Nervous',  hex: '#f4845f', img: '../images/cat-nervous.webp' },   // red
+    { name: 'Playful',  hex: '#fcbf49', img: '../images/cat-playful.webp' },   // yellow (retired from the panel)
+    { name: 'Chill',    hex: '#74c69d', img: '../images/cat-chill.webp' },     // green
+    { name: 'Worried',  hex: '#9d0208', img: '../images/cat-worried.webp' },   // red (retired from the panel)
+    { name: 'Focused',  hex: '#2d6a4f', img: '../images/cat-focused.webp' },   // green
+    { name: 'Tired',    hex: '#5e81ac', img: '../images/cat-tired.webp' },     // blue
+  ];
+  const PICKER = [3, 2, 4, 6, 5];          // main row: Happy, Sad, Scared, Confused, Calm
+  // Side panel: every cat (the starters too), grouped by colour family.
+  const MORE_GROUPS = [
+    { title: 'Yellow', note: 'happy and full of energy', hex: '#ffd60a', ids: [3, 7, 0, 9, 8] },
+    { title: 'Green',  note: 'happy and calm',           hex: '#40916c', ids: [5, 14, 16] },
+    { title: 'Blue',   note: 'upset and low energy',     hex: '#1d4e89', ids: [2, 6, 11, 17] },
+    { title: 'Red',    note: 'upset and full of energy', hex: '#c1121f', ids: [4, 1, 12, 10] },
+  ];
+  const MORE = MORE_GROUPS.flatMap(g => g.ids);
+
+  const $ = id => document.getElementById(id);
+  const canvas = $('world'), ctx = canvas.getContext('2d');
+  const box = $('box');
+
+  const session = Math.random().toString(36).slice(2, 10);
+  let seq = 0;
+  let mode = 'play';
+  let mood = 3;                  // Happy
+
+  function rng32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ---- deterministic world: marbles and sand ----
+  // A new marble falls, bounces and rolls, knocking other marbles it hits hard enough. When it
+  // rests touching a marble of the same kind, the two become one bigger marble. Tapping a marble pops it into sand (about half its area) that scatters a little and
+  // pours into whatever space it can reach. Marbles left hanging drop into gaps, and sand left
+  // hanging pours down, which can set off more merges. Only seeded random numbers, + - * / and
+  // Math.sqrt are used, so every screen gets exactly the same world.
+  let balls = [];                 // {x, y, r, c, i (id), n (memories inside)}
+  const TOUCH = 0.5;              // how close counts as touching
+  const CELL = 1, SW = GW / CELL, SH = GH / CELL;   // sand grid: one grain per world unit (fine, like the first Sandfall)
+  const SAND_R = 0.6;             // a grain's size when a marble bumps into it
+  let sand = new Uint32Array(SW * SH);              // 0 = empty, otherwise the grain's colour (RGBA)
+  let sandCount = 0;
+  const solid = new Uint32Array(SW * SH);           // cells inside a marble: stamped with solidVer when marked
+
+  let solidVer = 1, solidSig = NaN;
+  function markMarbles() {
+    // skip if no marble has moved since the last time (each marble weighted differently and
+    // squared too, so two marbles pushed apart by the same amount still change the fingerprint)
+    let sig = balls.length;
+    for (let k = 0; k < balls.length; k++) {
+      const b = balls[k], w = 1 + k * 0.618;
+      sig += (b.x * 3.1 + b.y * 7.3 + b.r * 11.7) * w + (b.x * b.x + b.y * b.y) * 0.001;
+    }
+    if (sig === solidSig) return;
+    solidSig = sig;
+    solidVer++;
+    for (const b of balls) {
+      const x0 = Math.max(0, Math.floor((b.x - b.r) / CELL)), x1 = Math.min(SW - 1, Math.floor((b.x + b.r) / CELL));
+      const y0 = Math.max(0, Math.floor((b.y - b.r) / CELL)), y1 = Math.min(SH - 1, Math.floor((b.y + b.r) / CELL));
+      const rr = b.r * b.r;
+      for (let gy = y0; gy <= y1; gy++) for (let gx = x0; gx <= x1; gx++) {
+        const dx = (gx + 0.5) * CELL - b.x, dy = (gy + 0.5) * CELL - b.y;
+        if (dx * dx + dy * dy < rr) solid[gy * SW + gx] = solidVer;
+      }
+    }
+  }
+  const openCell = (gx, gy) => gx >= 0 && gx < SW && gy >= 0 && gy < SH && !sand[gy * SW + gx] && solid[gy * SW + gx] !== solidVer;
+
+  // A grain falls from (gx, gy), sliding diagonally off whatever it lands on, until it rests.
+  function pourGrain(gx, gy, col, rand) {
+    for (;;) {
+      if (openCell(gx, gy + 1)) { gy++; continue; }
+      const d = rand() < 0.5 ? -1 : 1;
+      if (openCell(gx + d, gy + 1)) { gx += d; gy++; continue; }
+      if (openCell(gx - d, gy + 1)) { gx -= d; gy++; continue; }
+      break;
+    }
+    const idx = gy * SW + gx;
+    sand[idx] = col;
+    sandCount++;
+    if (gy < sandTop[gx]) sandTop[gx] = gy;
+    patch[(gy >> 3) * PW + (gx >> 3)]++;
+    return idx;
+  }
+  // Takes the grain at i out of the grid.
+  function liftGrain(i) {
+    sand[i] = 0; sandCount--;
+    const gx = i % SW, gy = (i - gx) / SW;
+    patch[(gy >> 3) * PW + (gx >> 3)]--;
+    if (gy === sandTop[gx]) { let y = gy; while (y < SH && !sand[y * SW + gx]) y++; sandTop[gx] = y; }
+  }
+
+  // Sand left with nothing under it (a marble moved away) pours down. Bottom rows first.
+  function pourLooseSand(rand, spots) {
+    if (!sandCount || !spots || !spots.length) return null;
+    markMarbles();
+    // only the columns where something moved (spots), widening as grains slide sideways
+    let c0 = SW, c1 = -1;
+    for (const g of spots) { c0 = Math.min(c0, Math.floor((g.x - g.r) / CELL) - 2); c1 = Math.max(c1, Math.floor((g.x + g.r) / CELL) + 2); }
+    c0 = Math.max(0, c0); c1 = Math.min(SW - 1, c1);
+    let x0 = SW, x1 = -1, y0 = SH, y1 = -1;
+    for (let pass = 0; pass < 40 && c0 <= c1; pass++) {
+      let moved = 0, m0 = c0, m1 = c1;
+      for (let gy = SH - 2; gy >= 0; gy--) {
+        for (let gx = c0; gx <= c1; gx++) {
+          const i = gy * SW + gx, col = sand[i];
+          if (!col) continue;
+          if (openCell(gx, gy + 1) || openCell(gx - 1, gy + 1) || openCell(gx + 1, gy + 1)) {
+            liftGrain(i);
+            const to = pourGrain(gx, gy, col, rand), tx = to % SW;
+            moved++;
+            if (gx < x0) x0 = gx; if (gx > x1) x1 = gx; if (gy < y0) y0 = gy; if (gy > y1) y1 = gy;
+            m0 = Math.min(m0, gx - 1, tx - 1); m1 = Math.max(m1, gx + 1, tx + 1);
+          }
+        }
+      }
+      if (!moved) break;
+      c0 = Math.max(0, m0); c1 = Math.min(SW - 1, m1);
+    }
+    if (x1 < 0) return null;
+    const w = (x1 - x0 + 1) * CELL, h = (y1 - y0 + 1) * CELL;
+    return { x: x0 * CELL + w / 2, y: y0 * CELL + h / 2, r: Math.sqrt(w * w + h * h) / 2 };
+  }
+
+  function sandOverlaps(x, y, r) {
+    if (!sandCount) return false;
+    const D = r + SAND_R - 0.01;
+    const gx0 = Math.max(0, Math.floor((x - D) / CELL)), gx1 = Math.min(SW - 1, Math.floor((x + D) / CELL));
+    const gy0 = Math.max(0, Math.floor((y - D) / CELL)), gy1 = Math.min(SH - 1, Math.floor((y + D) / CELL));
+    for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
+      if (!sand[gy * SW + gx]) continue;
+      const dx = x - (gx + 0.5) * CELL, dy = y - (gy + 0.5) * CELL;
+      if (dx * dx + dy * dy < D * D) return true;
+    }
+    return false;
+  }
+
+  function overlapsAny(x, y, r, skipA, skipB) {
+    for (const b of balls) {
+      if (b === skipA || b === skipB) continue;
+      const dx = x - b.x, dy = y - b.y, rr = r + b.r - 0.01;
+      if (dx * dx + dy * dy < rr * rr) return true;
+    }
+    return sandOverlaps(x, y, r);
+  }
+
+  // ---- moving marbles ----
+  // Settled marbles sleep. Moving marbles fall, bounce and roll, and a moving marble that hits a
+  // sleeping one hard enough wakes it, so marbles knock each other around (heavier ones push
+  // harder). Each event is simulated in fixed steps until everything sleeps again.
+  const WAKE_V = 1.2;             // how hard a hit has to be to set a sleeping marble moving (resting weight doesn't count)
+
+  function wake(b) { b.aw = true; b.vx = 0; b.vy = 0; b.calm = 0; b.still = 0; }
+  // Set by simulate(): the first same-kind pair that touched (it stops early so they can merge
+  // right away), and the marbles that were still moving when it stopped.
+  let lastHit = null, lastFlying = [];
+  // Would pushing marble m along (px, py) shove it into the floor or a wall? Then it can't give way.
+  const pinned = (m, px, py) => (py > 0.3 && m.y >= GH - m.r - 0.01) || (px < -0.3 && m.x <= m.r + 0.01) || (px > 0.3 && m.x >= GW - m.r - 0.01);
+  // How much of an overlap each of two moving marbles takes: by weight, unless one is pinned.
+  function shares(a, b, nx, ny) {
+    const ma = a.r * a.r, mb = b.r * b.r;
+    const aStuck = pinned(a, nx, ny), bStuck = pinned(b, -nx, -ny);
+    if (aStuck && !bStuck) return [0, 1];
+    if (bStuck && !aStuck) return [1, 0];
+    return [mb / (ma + mb), ma / (ma + mb)];
+  }
+
+  // Highest grain in each sand column, so a marble only checks sand where it can reach it.
+  // Kept up to date by pourGrain/liftGrain; rebuilt after a rollback or reset.
+  const sandTop = new Int16Array(SW).fill(SH);
+  // Grains per 8x8 patch of the grid (also kept up to date by pourGrain/liftGrain).
+  const PW = Math.ceil(SW / 8), PH = Math.ceil(SH / 8);
+  const patch = new Int32Array(PW * PH);
+  function refreshSandTop() {
+    for (let gx = 0; gx < SW; gx++) {
+      let gy = 0;
+      while (gy < SH && !sand[gy * SW + gx]) gy++;
+      sandTop[gx] = gy;
+    }
+    patch.fill(0);
+    for (let i = 0; i < sand.length; i++) if (sand[i]) { const gx = i % SW; patch[(((i - gx) / SW) >> 3) * PW + (gx >> 3)]++; }
+  }
+
+  // Runs the world until every moving marble is asleep. `movers` are already in `balls`.
+  // Returns the marbles that moved, each with its starting spot in sx, sy.
+  function simulate(movers, tl) {
+    const moved = new Set();
+    let awake = 0;
+    for (const b of movers) {
+      if (b.vx === undefined) b.vx = 0;
+      if (b.vy === undefined) b.vy = 0;
+      b.aw = true; b.calm = 0; b.still = 0; b.woke = -1; b.sx = b.x; b.sy = b.y;
+      moved.add(b); awake++;
+    }
+    const T0 = tl ? tl.now() : 0;
+    let step = 0, hit = null;
+    for (; step < MAX_STEPS && awake > 0 && !hit; step++) {
+      for (const b of balls) if (b.aw) {
+        b.vy = Math.min(b.vy + G, VMAX);
+        b.x += b.vx; b.y += b.vy;
+        b.touch = false; b.floor = false; b.wall = false; b.contacts = 0; b.lastNx = 0; b.onSand = false; b.below = 0;
+      }
+      // two passes per step so a marble pushed out of one neighbour doesn't stay inside another (bounce only on the first)
+      for (let pass = 0; pass < 2; pass++) {
+        const first = pass === 0;
+        for (let ai = 0; ai < balls.length; ai++) {
+          const a = balls[ai];
+          if (!a.aw) continue;
+          const r = a.r;
+          if (a.x < r) { a.x = r; if (first && a.vx < 0) a.vx = a.vx < -1 ? -a.vx * BOUNCE : 0; a.touch = a.wall = true; }
+          else if (a.x > GW - r) { a.x = GW - r; if (first && a.vx > 0) a.vx = a.vx > 1 ? -a.vx * BOUNCE : 0; a.touch = a.wall = true; }
+          if (a.y > GH - r) { a.y = GH - r; if (first && a.vy > 0) a.vy = a.vy > 1 ? -a.vy * BOUNCE : 0; a.touch = a.floor = true; }
+          for (let bi = 0; bi < balls.length; bi++) {
+            if (bi === ai) continue;
+            const b = balls[bi];
+            if (b.aw && bi < ai && b.woke !== step) continue;   // that pair was handled from b's side
+            const D = r + b.r;
+            let dx = a.x - b.x, dy = a.y - b.y;
+            if (dx > D || dx < -D || dy > D || dy < -D) continue;
+            let d2 = dx * dx + dy * dy;
+            if (d2 >= D * D) continue;
+            if (d2 < 1e-9) { dx = 0.01; dy = -1; d2 = 1.0001; }
+            const d = Math.sqrt(d2);
+            const nx = dx / d, ny = dy / d, pen = D - d;
+            const ma = r * r, mb = b.r * b.r;
+            if (first && !hit && a.c === b.c) hit = [a, b];   // same kind touching: they merge as soon as this step ends
+            if (first && !b.aw) {
+              const impact = -(a.vx * nx + a.vy * ny) * Math.min(2, ma / mb);   // a heavier marble hits harder
+              if (impact > WAKE_V) {
+                if (tl) tl.holdUntil(b, b.x, b.y, T0 + step);
+                if (!moved.has(b)) { b.sx = b.x; b.sy = b.y; }
+                wake(b); b.woke = step;
+                b.touch = false; b.floor = false; b.wall = false; b.contacts = 0; b.lastNx = 0; b.onSand = false; b.below = 0;
+                moved.add(b); awake++;
+              }
+            }
+            if (b.aw) {                          // both moving: share the push and the bounce by weight
+              const [sa, sb] = shares(a, b, nx, ny);
+              a.x += nx * pen * sa; a.y += ny * pen * sa;
+              b.x -= nx * pen * sb; b.y -= ny * pen * sb;
+              const vn = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+              if (first && vn < 0) {
+                const j = -(1 + (vn < -1 ? BOUNCE : 0)) * vn / (1 / ma + 1 / mb);   // gentle touches don't bounce
+                a.vx += j / ma * nx; a.vy += j / ma * ny;
+                b.vx -= j / mb * nx; b.vy -= j / mb * ny;
+              }
+              if (first) { b.touch = true; b.contacts++; b.lastNx = -nx; if (ny > 0) b.below++; }
+            } else {                             // sleeping marble stays put
+              a.x = b.x + nx * D; a.y = b.y + ny * D;
+              const vn = a.vx * nx + a.vy * ny;
+              if (first && vn < 0) { const e = vn < -1 ? BOUNCE : 0; a.vx -= (1 + e) * vn * nx; a.vy -= (1 + e) * vn * ny; }
+            }
+            if (first) { a.touch = true; a.contacts++; a.lastNx = nx; if (ny < 0) a.below++; }
+          }
+          if (sandCount) {                       // grains act like tiny fixed pebbles
+            const D = r + SAND_R;
+            const gx0 = Math.max(0, Math.floor((a.x - D) / CELL)), gx1 = Math.min(SW - 1, Math.floor((a.x + D) / CELL));
+            const gy0 = Math.max(0, Math.floor((a.y - D) / CELL)), gy1 = Math.min(SH - 1, Math.floor((a.y + D) / CELL));
+            for (let gx = gx0; gx <= gx1; gx++) {
+              if (gy1 < sandTop[gx]) continue;       // this column's sand is below the marble
+              for (let gy = Math.max(gy0, sandTop[gx]); gy <= gy1; gy++) {
+                if (!patch[(gy >> 3) * PW + (gx >> 3)]) { gy |= 7; continue; }   // empty patch: jump past it
+                if (!sand[gy * SW + gx]) continue;
+                const cx = (gx + 0.5) * CELL, cy = (gy + 0.5) * CELL;
+                let dx = a.x - cx, dy = a.y - cy;
+                let d2 = dx * dx + dy * dy;
+                if (d2 >= D * D) continue;
+                if (d2 < 1e-9) { dx = 0; dy = -1; d2 = 1; }
+                const d = Math.sqrt(d2);
+                const nx = dx / d, ny = dy / d;
+                a.x = cx + nx * D; a.y = cy + ny * D;
+                const vn = a.vx * nx + a.vy * ny;
+                if (first && vn < 0) { const e = vn < -1 ? BOUNCE : 0; a.vx -= (1 + e) * vn * nx; a.vy -= (1 + e) * vn * ny; }
+                if (first) { a.touch = a.onSand = true; a.contacts++; a.lastNx = nx; if (ny < 0) a.below++; }
+              }
+            }
+          }
+          if (a.x < r) { a.x = r; if (a.vx < 0) a.vx = 0; a.wall = true; }
+          else if (a.x > GW - r) { a.x = GW - r; if (a.vx > 0) a.vx = 0; a.wall = true; }
+          if (a.y > GH - r) { a.y = GH - r; if (a.vy > 0) a.vy = 0; a.floor = true; }
+        }
+      }
+      for (const b of balls) if (b.aw) {
+        if (b.touch) { b.vx *= DRAG; b.vy *= DRAG; }
+        if (b.onSand) { b.vx *= 0.9; b.vy *= 0.9; }
+        // balanced on top of a single marble: keep rolling off it
+        const perched = b.contacts === 1 && !b.floor && !b.wall;
+        if (perched) b.vx += b.lastNx >= 0 ? 0.04 : -0.04;
+        const sp = b.vx * b.vx + b.vy * b.vy;
+        let rest = false;
+        if (!perched && (b.floor || b.contacts >= 2 || (b.wall && b.contacts >= 1)) && sp < 0.02) { if (++b.calm >= 12) rest = true; }
+        else b.calm = 0;
+        if (b.touch && sp < 0.02) { if (++b.still >= 40) rest = true; } else b.still = 0;
+        if (tl) tl.put(b, T0 + step, b.x, b.y, b.r, 1);
+        if (rest) { b.aw = false; b.vx = 0; b.vy = 0; awake--; }
+      }
+    }
+    // stopped early for a merge: marbles still moving keep their speed and carry on afterwards
+    const flying = [];
+    for (const b of balls) if (b.aw) { b.aw = false; if (hit) flying.push(b); else { b.vx = 0; b.vy = 0; } }
+    lastHit = hit; lastFlying = flying;
+    if (tl) tl.advance(step);
+    // tidy: no overflow, no sand inside a marble (overlaps are cleaned up for the whole box afterwards)
+    for (const b of moved) {
+      if (!balls.includes(b) || flying.includes(b)) continue;
+      if (b.y < b.r - 0.5) { balls = balls.filter(o => o !== b); continue; }   // resting above the box: it overflows
+      if (sandCount) shiftSandOut(b);
+      if (tl) tl.put(b, tl.now(), b.x, b.y, b.r, 1);
+    }
+    return [...moved];
+  }
+
+  // Whole-box cleanup: every overlapping pair is pushed apart by weight (floor and walls hold firm)
+  // until nothing overlaps; anything still wedged moves to the nearest clear spot. Returns the
+  // marbles that moved noticeably, with where they were.
+  function relaxAll() {
+    const start = new Map();
+    for (let it = 0; it < 40; it++) {
+      let worst = 0;
+      for (let i = 0; i < balls.length; i++) {
+        const a = balls[i];
+        for (let j = i + 1; j < balls.length; j++) {
+          const b = balls[j];
+          const D = a.r + b.r;
+          let dx = a.x - b.x, dy = a.y - b.y;
+          if (dx > D || dx < -D || dy > D || dy < -D) continue;
+          let d2 = dx * dx + dy * dy;
+          if (d2 >= (D - 0.05) * (D - 0.05)) continue;
+          if (d2 < 1e-9) { dx = 0; dy = -1; d2 = 1; }
+          const d = Math.sqrt(d2), pen = D - d, nx = dx / d, ny = dy / d;
+          if (pen > worst) worst = pen;
+          if (!start.has(a)) start.set(a, [a.x, a.y]);
+          if (!start.has(b)) start.set(b, [b.x, b.y]);
+          const [sa, sb] = shares(a, b, nx, ny);
+          a.x += nx * pen * sa; a.y += ny * pen * sa;
+          b.x -= nx * pen * sb; b.y -= ny * pen * sb;
+        }
+      }
+      for (const b of start.keys()) {
+        if (b.x < b.r) b.x = b.r; else if (b.x > GW - b.r) b.x = GW - b.r;
+        if (b.y > GH - b.r) b.y = GH - b.r;
+      }
+      if (worst < 0.05) break;
+    }
+    const nudged = [];
+    relaxAll.touched = [];
+    for (const [b, [x, y]] of start) {
+      if (!balls.includes(b)) continue;
+      relaxAll.touched.push({ x, y, r: b.r });
+      unwedge(b);
+      if (sandCount) shiftSandOut(b);
+      const dx = b.x - x, dy = b.y - y;
+      if (dx * dx + dy * dy > 0.25) nudged.push({ b, x, y });
+    }
+    return nudged;
+  }
+
+  // Any two touching marbles of the same kind, in a fixed order.
+  function anyMerge() {
+    for (let i = 0; i < balls.length; i++) {
+      const a = balls[i];
+      for (let j = i + 1; j < balls.length; j++) {
+        const b = balls[j];
+        if (a.c !== b.c) continue;
+        const D = a.r + b.r + TOUCH, dx = a.x - b.x, dy = a.y - b.y;
+        if (dx * dx + dy * dy <= D * D) return findMerge(a);
+      }
+    }
+    return null;
+  }
+
+  // Marbles that just moved nudge each other (and themselves off settled ones) until none overlap,
+  // so a jam can spread out instead of one marble staying inside another.
+  function relax(moved) {
+    const list = [...moved].filter(b => balls.includes(b));
+    for (let it = 0; it < 24; it++) {
+      let worst = 0;
+      for (const a of list) {
+        for (const b of balls) {
+          if (b === a) continue;
+          const bMoved = moved.has(b);
+          if (bMoved && b.i < a.i) continue;     // each moving pair once
+          const D = a.r + b.r;
+          let dx = a.x - b.x, dy = a.y - b.y;
+          if (dx > D || dx < -D || dy > D || dy < -D) continue;
+          let d2 = dx * dx + dy * dy;
+          if (d2 >= (D - 0.05) * (D - 0.05)) continue;
+          if (d2 < 1e-9) { dx = 0; dy = -1; d2 = 1; }
+          const d = Math.sqrt(d2), pen = D - d, nx = dx / d, ny = dy / d;
+          if (pen > worst) worst = pen;
+          if (bMoved) {
+            const [sa, sb] = shares(a, b, nx, ny);
+            a.x += nx * pen * sa; a.y += ny * pen * sa; b.x -= nx * pen * sb; b.y -= ny * pen * sb;
+          } else { a.x += nx * pen; a.y += ny * pen; }
+        }
+      }
+      for (const b of list) {
+        if (b.x < b.r) b.x = b.r; else if (b.x > GW - b.r) b.x = GW - b.r;
+        if (b.y > GH - b.r) b.y = GH - b.r;
+      }
+      if (worst < 0.05) break;
+    }
+  }
+
+  // Pushes a marble out of any neighbour it ended up inside; if it's wedged, moves it to the
+  // nearest clear spot (upward first, fixed directions so every screen picks the same spot).
+  function unwedge(m) {
+    const r = m.r;
+    let x = m.x, y = m.y;
+    for (let it = 0; it < 8; it++) {
+      let moved = false;
+      for (const b of balls) {
+        if (b === m) continue;
+        const D = r + b.r;
+        const dx = x - b.x, dy = y - b.y, d2 = dx * dx + dy * dy;
+        if (d2 >= (D - 0.05) * (D - 0.05)) continue;
+        const d = d2 > 1e-9 ? Math.sqrt(d2) : 1;
+        const nx = d2 > 1e-9 ? dx / d : 0, ny = d2 > 1e-9 ? dy / d : -1;
+        x = b.x + nx * D; y = b.y + ny * D;
+        moved = true;
+      }
+      if (x < r) x = r; else if (x > GW - r) x = GW - r;
+      if (y > GH - r) y = GH - r;
+      if (!moved) break;
+    }
+    const inside = (px, py) => balls.some(b => { if (b === m) return false; const dx = px - b.x, dy = py - b.y, D = r + b.r - 0.3; return dx * dx + dy * dy < D * D; });
+    if (inside(x, y)) {
+      const dirs = [[0, -1], [0.3827, -0.9239], [-0.3827, -0.9239], [0.7071, -0.7071], [-0.7071, -0.7071],
+        [0.9239, -0.3827], [-0.9239, -0.3827], [1, 0], [-1, 0], [0.7071, 0.7071], [-0.7071, 0.7071], [0, 1]];
+      search:
+      for (let step = 0.5; step <= r * 3; step += 0.5) {
+        for (const [ux, uy] of dirs) {
+          const tx = x + ux * step, ty = y + uy * step;
+          if (tx < r || tx > GW - r || ty > GH - r) continue;
+          if (!inside(tx, ty)) { x = tx; y = ty; break search; }
+        }
+      }
+    }
+    m.x = x; m.y = y;
+  }
+
+  // Grains a marble was nudged into are moved up over its top and poured from there.
+  function shiftSandOut(b) {
+    const x0 = Math.max(0, Math.floor((b.x - b.r) / CELL)), x1 = Math.min(SW - 1, Math.floor((b.x + b.r) / CELL));
+    const y0 = Math.max(0, Math.floor((b.y - b.r) / CELL)), y1 = Math.min(SH - 1, Math.floor((b.y + b.r) / CELL));
+    const caught = [];
+    for (let gy = y0; gy <= y1; gy++) for (let gx = x0; gx <= x1; gx++) {
+      const i = gy * SW + gx;
+      if (!sand[i]) continue;
+      const dx = (gx + 0.5) * CELL - b.x, dy = (gy + 0.5) * CELL - b.y;
+      if (dx * dx + dy * dy < b.r * b.r) { caught.push(gx, sand[i]); liftGrain(i); }
+    }
+    if (!caught.length) return;
+    markMarbles();
+    const rand = rng32(((b.x * 977) ^ (b.y * 131)) >>> 0);
+    for (let k = 0; k < caught.length; k += 2) {
+      const gx = caught[k];
+      let gy = Math.floor((b.y - b.r) / CELL) - 1;          // just above the marble in that column
+      while (gy >= 0 && !openCell(gx, gy)) gy--;
+      if (gy >= 0) pourGrain(gx, gy, caught[k + 1], rand);  // no room above at all: the grain is lost
+    }
+  }
+
+  // Resting on the floor, on sand, on two marbles below it, or on one marble and a wall.
+  function supported(b) {
+    if (b.y >= GH - b.r - TOUCH) return true;
+    const wall = b.x <= b.r + TOUCH || b.x >= GW - b.r - TOUCH;
+    let below = 0;                          // touching things level with or under its middle
+    const level = b.y - b.r * 0.3;
+    for (const o of balls) {
+      if (o === b || o.y < level) continue;
+      const D = b.r + o.r + TOUCH, dx = b.x - o.x, dy = b.y - o.y;
+      if (dx * dx + dy * dy <= D * D) below++;
+    }
+    if (sandCount) {
+      const D = b.r + SAND_R + TOUCH;
+      const gx0 = Math.max(0, Math.floor((b.x - D) / CELL)), gx1 = Math.min(SW - 1, Math.floor((b.x + D) / CELL));
+      const gy0 = Math.max(0, Math.floor(level / CELL)), gy1 = Math.min(SH - 1, Math.floor((b.y + D) / CELL));
+      let grains = 0;
+      for (let gy = gy0; gy <= gy1 && grains < 2; gy++) for (let gx = gx0; gx <= gx1; gx++) {
+        if (!sand[gy * SW + gx]) continue;
+        const cy = (gy + 0.5) * CELL, dx = b.x - (gx + 0.5) * CELL, dy = b.y - cy;
+        if (cy >= level && dx * dx + dy * dy <= D * D) grains++;
+      }
+      if (grains >= 2) return true;
+      below += grains;
+    }
+    return below >= 2 || (wall && below >= 1);
+  }
+
+  // The first same-kind marble touching `a`, and a spot where their combined marble goes.
+  function findMerge(a) {
+    let b = null;
+    for (const o of balls) {
+      if (o === a || o.c !== a.c) continue;
+      const D = a.r + o.r + TOUCH, dx = a.x - o.x, dy = a.y - o.y;
+      if (dx * dx + dy * dy <= D * D) { b = o; break; }
+    }
+    return b ? mergeOf(a, b) : null;
+  }
+
+  // Where the combined marble of a and b goes: their meeting point or the nearest open spot above.
+  function mergeOf(a, b) {
+    const A1 = a.r * a.r, A2 = b.r * b.r;
+    const r = Math.sqrt(A1 + A2);             // same total area, like agar.io
+    if (r * 2 > GH || r * 2 > GW) return null;
+    const x = Math.min(GW - r, Math.max(r, (a.x * A1 + b.x * A2) / (A1 + A2)));
+    const y = Math.min(GH - r, (a.y * A1 + b.y * A2) / (A1 + A2));
+    for (let lift = 0; lift <= r * 3; lift += 1) { // the meeting point, or the nearest open spot above it
+      const ty = y - lift;
+      if (ty < r) break;
+      if (!overlapsAny(x, ty, r, a, b)) return { a, b, x, y: ty, r };
+    }
+    return { a, b, x, y: -r, r };              // no room nearby: it drops in from the top
+  }
+
+  const touchesSpot = (b, spots) => spots.some(g => { const dx = b.x - g.x, dy = b.y - g.y, rr = b.r + g.r + 2; return dx * dx + dy * dy <= rr * rr; });
+
+  // Plays out an event: moving marbles, marbles that lose their support, pouring sand and merges,
+  // until everything is still. `gone` lists spots ({x, y, r}) where something just went away.
+  function playOut(ch, tl, movers, gone) {
+    const rand = rng32((ch.s ^ 0x9e3779b9) >>> 0);
+    const queue = [];
+    const woken = new Map();                   // how often each marble was woken for losing support
+    let made = 0, pending = null;
+    let sandSpots = gone.slice();              // where sand may have lost what held it up
+    for (let round = 0; round < 40; round++) {
+      if (gone.length) {
+        for (const b of balls) {
+          if (movers.includes(b) || (woken.get(b) || 0) >= 2 || !touchesSpot(b, gone) || supported(b)) continue;
+          woken.set(b, (woken.get(b) || 0) + 1);
+          if (tl) tl.holdUntil(b, b.x, b.y, tl.now());
+          b.vx = 0; b.vy = 0; movers.push(b);
+        }
+      }
+      gone = [];
+      if (movers.length) {
+        const moved = simulate(movers, tl);
+        const hit = lastHit, flying = lastFlying.filter(b => balls.includes(b));
+        movers = [];
+        for (const b of moved) {
+          sandSpots.push({ x: b.sx, y: b.sy, r: b.r });   // sand may slip wherever a marble left
+          if (flying.includes(b)) continue;
+          const dx = b.x - b.sx, dy = b.y - b.sy;
+          if (dx * dx + dy * dy > 1) gone.push({ x: b.sx, y: b.sy, r: b.r });   // a wiggle doesn't count
+          if (balls.includes(b)) queue.push(b);
+        }
+        if (pending && !balls.includes(pending.m)) { balls.push(pending.a, pending.b); }   // box full: they stay apart
+        pending = null;
+        if (hit && balls.includes(hit[0]) && balls.includes(hit[1])) {
+          const mg = mergeOf(hit[0], hit[1]);
+          if (mg) {
+            const m = combine(mg);
+            movers = [m, ...flying.filter(b => b !== mg.a && b !== mg.b)];
+            continue;
+          }
+        }
+        if (flying.length) { movers = flying; continue; }
+      }
+      sandSpots.push(...gone);
+      const poured = pourLooseSand(rand, sandSpots);
+      sandSpots = [];
+      if (poured) gone.push(poured);
+      if (gone.length) continue;               // something may have lost its support
+      const nudged = relaxAll();               // nothing inside anything else
+      const relaxTouched = relaxAll.touched;
+      if (nudged.length) {
+        for (const { b, x, y } of nudged) { gone.push({ x, y, r: b.r }); if (tl) tl.put(b, tl.now(), b.x, b.y, b.r, 1); }
+        sandSpots.push(...relaxTouched);         // even marbles nudged a hair can leave sand hanging
+        if (tl) tl.advance(1);
+        continue;
+      }
+      const settledSand = pourLooseSand(rand, relaxTouched); // tiny nudges can leave a grain hanging
+      if (settledSand) { gone = [settledSand]; continue; }
+      let mg = null;                           // touching marbles of the same kind combine
+      while (queue.length && !mg) { const a = queue.shift(); if (balls.includes(a)) mg = findMerge(a); }
+      if (!mg) mg = anyMerge();
+      if (!mg) {
+        // safety net: one sweep of the whole box so no grain is ever left hanging
+        const swept = pourLooseSand(rand, [{ x: GW / 2, y: GH / 2, r: GW }]);
+        if (swept) { gone = [swept]; continue; }
+        return;
+      }
+      movers = [combine(mg)];
+    }
+    pourLooseSand(rand, [{ x: GW / 2, y: GH / 2, r: GW }]);   // ran out of rounds: still leave no grain hanging
+
+    // Replaces the pair with their combined marble (it then rolls to rest).
+    function combine(mg) {
+      const m = { x: mg.x, y: mg.y, r: mg.r, c: mg.a.c, i: ch.i + '/' + (++made), n: mg.a.n + mg.b.n, vx: 0, vy: 0 };
+      gone = [{ x: mg.a.x, y: mg.a.y, r: mg.a.r }, { x: mg.b.x, y: mg.b.y, r: mg.b.r }];
+      sandSpots.push(...gone);
+      balls = balls.filter(o => o !== mg.a && o !== mg.b);
+      if (tl) tl.merge(mg.a, mg.b, m);
+      balls.push(m);
+      pending = { m, a: mg.a, b: mg.b };
+      return m;
+    }
+  }
+
+  // Drops one marble and plays out everything it sets off. `tl` records the motion for animation.
+  function place(ch, tl) {
+    const rand = rng32(ch.s);
+    const x = Math.min(GW - R, Math.max(R, ch.p[0]));
+    let y = Math.min(GH - R, Math.max(R, ch.p[1]));
+    if (overlapsAny(x, y, R)) y = -R;        // tapped inside the pile: drop from the top instead
+    const ball = { x, y, r: R, c: ch.c, i: ch.i, n: 1, vx: (rand() - 0.5) * 0.6, vy: 0 };
+    balls.push(ball);
+    playOut(ch, tl, [ball], []);
+  }
+
+  // A popped memory's sand isn't one flat colour: grains run from a light tint, through the
+  // marble's colour, to a deep shade, in soft bands, so piles build up in layered lines like
+  // sand art. (Plain arithmetic only, so every screen gets the same pattern.)
+  function sandPalette(rgb) {
+    return {
+      light: rgb.map((v, i) => v + ([255, 246, 228][i] - v) * 0.5),   // warm, pale tint
+      mid: rgb,
+      deep: rgb.map((v, i) => v + ([30, 16, 52][i] - v) * 0.4),        // cool, deep shade
+    };
+  }
+  const tri = x => { const f = x - Math.floor(x); return f < 0.5 ? f * 2 : 2 - f * 2; };   // 0..1..0 wave
+  function grainColour(pal, t, s) {
+    const k = 0.94 + s * 0.12;                 // a little grain-to-grain sparkle
+    const lo = t < 0.5, a = lo ? pal.light : pal.mid, b = lo ? pal.mid : pal.deep, u = lo ? t * 2 : t * 2 - 1;
+    const r = Math.min(255, (a[0] + (b[0] - a[0]) * u) * k) | 0;
+    const g = Math.min(255, (a[1] + (b[1] - a[1]) * u) * k) | 0;
+    const bl = Math.min(255, (a[2] + (b[2] - a[2]) * u) * k) | 0;
+    return ((255 << 24) | (bl << 16) | (g << 8) | r) >>> 0;   // little-endian RGBA
+  }
+
+  // The marble under the tap (the smallest one, if several overlap there).
+  function marbleAt(x, y) {
+    let hit = null;
+    for (const b of balls) {
+      const dx = x - b.x, dy = y - b.y, rr = b.r + 2;
+      if (dx * dx + dy * dy <= rr * rr && (!hit || b.r < hit.r)) hit = b;
+    }
+    return hit;
+  }
+
+  // Pops the tapped marble into sand.
+  function pop(ch, tl) {
+    const target = (ch.t && balls.find(b => b.i === ch.t)) || marbleAt(ch.p[0], ch.p[1]);
+    if (!target) return;
+    const rand = rng32(ch.s);
+    balls = balls.filter(b => b !== target);
+    if (tl) tl.pop(target);
+    markMarbles();
+    // about half the marble's area becomes sand, scattered a little past where it was
+    const want = Math.max(8, Math.round(0.5 * 3.14159 * target.r * target.r / (CELL * CELL)));
+    const spread = target.r * 1.2;
+    const pal = sandPalette(hexRgb(MOODS[target.c].hex));
+    const phase = rand(), bands = 2.5 + rand() * 2, tilt = (rand() - 0.5) * 1.2;   // each pop's own stripes
+    const spots = [];
+    for (let tries = 0; spots.length < want && tries < want * 8; tries++) {
+      const dx = (rand() * 2 - 1) * spread, dy = (rand() * 2 - 1) * spread, s = rand();
+      if (dx * dx + dy * dy > spread * spread) continue;
+      const yf = (dy / spread + 1) / 2, xf = (dx / spread + 1) / 2;
+      const t = Math.min(1, Math.max(0, 0.5 * yf + 0.5 * tri(yf * bands + xf * tilt + phase)));   // darker lower down, banded
+      spots.push([Math.floor((target.x + dx) / CELL), Math.floor((target.y + dy) / CELL), s, t]);
+    }
+    spots.sort((p, q) => q[1] - p[1] || p[0] - q[0]);   // lowest grains settle first
+    const grains = tl ? [] : null;
+    for (const [gx, gy, s, t] of spots) {
+      if (!openCell(gx, gy)) continue;     // that spot is solid: no sand appears inside sealed space
+      const col = grainColour(pal, t, s);
+      const idx = pourGrain(gx, gy, col, rand);
+      if (grains) grains.push(gx, gy, idx % SW, (idx - idx % SW) / SW, col);
+    }
+    if (tl) tl.sand(grains);
+    playOut(ch, tl, [], [{ x: target.x, y: target.y, r: target.r }]);
+  }
+
+  // ---- animation timeline for one drop or pop (frames at 60 fps) ----
+  function makeTimeline() {
+    const tracks = new Map();     // id -> {c, f: [[x, y, r, alpha], ...]} indexed by frame
+    let T = 0, sandStart = 0, grains = null, sandEnd = 0;
+    const tr = b => { let t = tracks.get(b.i); if (!t) { t = { c: b.c, f: [] }; tracks.set(b.i, t); } return t; };
+    function put(b, f, x, y, r, a) {
+      const t = tr(b);
+      if (t.f.length && f > t.f.length) { const last = t.f[t.f.length - 1]; for (let k = t.f.length; k < f; k++) t.f[k] = last; }
+      t.f[f] = [x, y, r, a];
+    }
+    // a settled marble shows where it was until the moment it moves
+    function holdUntil(b, x, y, f) {
+      if (!tracks.has(b.i)) for (let k = 0; k < f; k++) put(b, k, x, y, b.r, 1);
+      else put(b, f, x, y, b.r, 1);
+    }
+    return {
+      now: () => T,
+      advance(n) { T += n; },
+      put, holdUntil,
+      pop(b) {                                // swells a little and fades as it bursts
+        for (let k = 0; k <= 8; k++) put(b, k, b.x, b.y, b.r * (1 + 0.18 * k / 8), 1 - k / 8);
+        T = 3;
+      },
+      sand(list) {                            // [sx, sy, fx, fy, colour, ...] in grid cells
+        grains = list;
+        sandStart = T;
+        const land = [];
+        let longest = 0;
+        for (let k = 0; k < list.length; k += 5) {
+          const fall = Math.max(0, list[k + 3] - list[k + 1]);
+          const t = 4 + Math.round(Math.sqrt(fall * 8)) + (k / 5) % 6;   // a short scatter, then gravity
+          land.push(t);
+          if (t > longest) longest = t;
+        }
+        grains.land = land;
+        sandEnd = sandStart + longest;
+        T += Math.min(longest, 24);
+      },
+      merge(a, b, m) {
+        holdUntil(a, a.x, a.y, T);
+        holdUntil(b, b.x, b.y, T);
+        for (let k = 1; k <= 5; k++) {        // the two slide together and fade
+          const t = k / 5;
+          put(a, T + k, a.x + (m.x - a.x) * t, a.y + (m.y - a.y) * t, a.r, 1 - t * 0.7);
+          put(b, T + k, b.x + (m.x - b.x) * t, b.y + (m.y - b.y) * t, b.r, 1 - t * 0.7);
+        }
+        for (let k = 0; k <= 5; k++) put(m, T + 2 + k, m.x, m.y, m.r * (0.6 + 0.4 * k / 5), 0.5 + 0.5 * k / 5);
+        T += 6;
+      },
+      finish(alive) {
+        for (const t of tracks.values()) {
+          const f = t.f, out = f.slice();
+          for (let k = 2; k < f.length - 2; k++) {
+            const w = [f[k - 2], f[k - 1], f[k], f[k + 1], f[k + 2]];
+            if (w.some(p => !p || p[3] !== 1 || p[2] !== f[k][2])) continue;
+            out[k] = [(w[0][0] + w[1][0] + w[2][0] + w[3][0] + w[4][0]) / 5, (w[0][1] + w[1][1] + w[2][1] + w[3][1] + w[4][1]) / 5, f[k][2], 1];
+          }
+          t.f = out;
+        }
+        const end = Math.max(T, sandEnd) + 1;
+        for (const [id, t] of tracks) if (alive.has(id) && t.f.length) put({ i: id, c: t.c }, end, ...t.f[t.f.length - 1]);
+        return { tracks, end, grains, sandStart };
+      },
+    };
+  }
+
+  // ---- ordered drop log ----
+  let gen = 'local';
+  let chunks = [], seen = new Set(), committed = 0, checkpoints = [];
+  let everCommitted = new Set();
+  let lastKey = 0, skew = 0, clockOffset = 0;
+  let anims = [], animsVersion = 0;   // [{t0, end, tracks, grains, sandStart}]; version bumps when the list changes
+
+  const logicalNow = () => Date.now() + clockOffset + skew;
+  function nextKey() {
+    lastKey = Math.max(Math.floor(logicalNow()), lastKey + 1);
+    return lastKey;
+  }
+  function observeKey(k) {
+    if (k > lastKey) lastKey = k;
+    const ahead = k - (Date.now() + clockOffset);
+    if (ahead > skew) skew = Math.min(60000, ahead);
+  }
+  function cmp(a, b) { return a.k - b.k || (a.i < b.i ? -1 : a.i > b.i ? 1 : 0); }
+  const copyBalls = list => list.map(b => ({ ...b }));
+
+  function addChunk(ch, remote) {
+    if (seen.has(ch.i)) return;
+    seen.add(ch.i);
+    if (remote) observeKey(ch.k);
+    let lo = 0, hi = chunks.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (cmp(chunks[m], ch) < 0) lo = m + 1; else hi = m; }
+    chunks.splice(lo, 0, ch);
+    if (lo < committed) rollback(lo);
+  }
+  function rollback(idx) {
+    while (checkpoints.length && checkpoints[checkpoints.length - 1].idx > idx) checkpoints.pop();
+    const cp = checkpoints[checkpoints.length - 1];
+    balls = cp ? copyBalls(cp.balls) : [];
+    if (cp) { sand.set(cp.sand); sandCount = cp.sandCount; } else { sand.fill(0); sandCount = 0; }
+    refreshSandTop();
+    worldVersion++;
+    committed = cp ? cp.idx : 0;
+    anims = [];
+  }
+  let worldVersion = 0;           // bumps whenever marbles or sand change, so the drawing can be reused until then
+  function commit(frameStart) {
+    const now = logicalNow();
+    const limit = now - HORIZON;
+    while (committed < chunks.length && chunks[committed].k <= limit) {
+      const ch = chunks[committed];
+      const replay = everCommitted.has(ch.i);  // re-doing it after a late arrival: finish now so nothing flickers
+      // new events wait for the next frame once this one has done 8 ms of work (even a big catch-up)
+      if (!replay && frameStart !== undefined && performance.now() - frameStart > 8) break;
+      const fresh = !replay && ch.k > now - 5000;
+      worldVersion++;
+      everCommitted.add(ch.i);
+      const tl = fresh ? makeTimeline() : null;
+      if (ch.l === 1) pop(ch, tl); else place(ch, tl);
+      if (tl) {
+        const anim = tl.finish(new Set(balls.map(b => b.i)));
+        anim.t0 = performance.now();
+        anims.push(anim);
+        animsVersion++;
+      }
+      committed++;
+      if (committed % CHECKPOINT_EVERY === 0) {
+        checkpoints.push({ idx: committed, balls: copyBalls(balls), sand: sand.slice(), sandCount });
+        if (checkpoints.length > 40) checkpoints.shift();
+      }
+    }
+  }
+  function resetLog() {
+    chunks = []; seen = new Set(); committed = 0; checkpoints = [];
+    everCommitted = new Set(); balls = []; anims = [];
+    sand.fill(0); sandCount = 0; sandTop.fill(SH); patch.fill(0);
+    worldVersion++;
+  }
+
+  function valid(c) {
+    if (!c || typeof c !== 'object') return null;
+    const { i, k, s, p } = c, col = c.c, r = c.r, l = c.l, t = c.t;
+    if (typeof i !== 'string' || i.length > 64) return null;
+    if (!Number.isFinite(k) || k < 0) return null;
+    if (!Number.isInteger(col) || col < 0 || col >= MOODS.length) return null;
+    if (!Number.isInteger(r) || r < 1 || r > 20) return null;
+    if (!Number.isInteger(s) || s < 0 || s > 4294967295) return null;
+    if (l !== 0 && l !== 1) return null;
+    if (!Array.isArray(p) || p.length !== 2) return null;
+    const [x, y] = p;
+    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= GW || y < 0 || y >= GH) return null;
+    const out = { i, k, c: col, r, s, l, p: [x, y] };
+    if (l === 1 && typeof t === 'string' && t.length <= 120) out.t = t;
+    return out;
+  }
+
+  // ---- dropping (multi-touch, hold to repeat) ----
+  const holds = new Map();
+  let canPour = true;
+  function dropAt(x, y) {
+    const ch = { i: session + ':' + (seq++), k: nextKey(), c: mood, r: R, s: (Math.random() * 4294967296) >>> 0, l: 0, p: [x, y] };
+    addChunk(ch, false);
+    send(ch);
+  }
+  const popping = new Map();      // marble id -> when this screen asked to pop it (drawn bursting right away)
+  function popAt(x, y, hit) {
+    if (popping.has(hit.i)) return;
+    popping.set(hit.i, performance.now());
+    const ch = { i: session + ':' + (seq++), k: nextKey(), c: hit.c, r: R, s: (Math.random() * 4294967296) >>> 0, l: 1, p: [x, y], t: hit.i };
+    addChunk(ch, false);
+    send(ch);
+  }
+  // At most one drop or pop every 350 ms per screen, so a room full of fast tappers stays smooth.
+  const ACTION_GAP = 350;
+  let lastAction = -1e9;
+  function canAct(now) {
+    if (now - lastAction < ACTION_GAP) return false;
+    lastAction = now;
+    return true;
+  }
+  // A dropped ball that is still appearing (waiting its turn) under the tap.
+  function formingAt(x, y) {
+    for (let j = committed; j < chunks.length; j++) {
+      const ch = chunks[j];
+      if (ch.l === 1) continue;
+      const dx = x - ch.p[0], dy = y - Math.min(GH - R, Math.max(R, ch.p[1])), rr = R * 1.3 + 3;
+      if (dx * dx + dy * dy <= rr * rr) return true;
+    }
+    return false;
+  }
+  // Marbles where they are drawn right now (settled or mid-fall), for tapping.
+  let onScreen = [];
+  function marbleOnScreen(x, y) {
+    let hit = null;
+    for (const b of onScreen) {
+      const dx = x - b.x, dy = y - b.y, rr = b.r * 1.3 + 3;   // the glow around a ball counts as the ball
+      if (dx * dx + dy * dy <= rr * rr && (!hit || b.r < hit.r)) hit = b;
+    }
+    return hit;
+  }
+  function toWorld(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.round((e.clientX - rect.left) / rect.width * GW);
+    const y = Math.round((e.clientY - rect.top) / rect.height * GH);
+    return [Math.min(GW - 1, Math.max(0, x)), Math.min(GH - 1, Math.max(0, y))];
+  }
+  canvas.addEventListener('pointerdown', e => {
+    if (mode !== 'play' || !canPour) return;
+    e.preventDefault();
+    const [x, y] = toWorld(e);
+    const now = performance.now();
+    const hit = marbleOnScreen(x, y);
+    if (hit) { if (!popping.has(hit.i) && canAct(now)) popAt(x, y, hit); return; }   // tapped a marble: pop it
+    if (formingAt(x, y)) return;               // tapped a ball that's still appearing: don't add another on top
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    holds.set(e.pointerId, { x, y, last: now });
+    if (canAct(now)) dropAt(x, y);
+  });
+  canvas.addEventListener('pointermove', e => {
+    const h = holds.get(e.pointerId);
+    if (h) [h.x, h.y] = toWorld(e);
+  });
+  const release = e => holds.delete(e.pointerId);
+  canvas.addEventListener('pointerup', release);
+  canvas.addEventListener('pointercancel', release);
+  function endStrokes() { holds.clear(); }
+
+  // ---- cat memory marbles ----
+  function hexRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function mix(rgb, to, t) { return 'rgb(' + rgb.map((v, i) => Math.round(v + (to[i] - v) * t)).join(',') + ')'; }
+  // ---- drawn faces (for the Joy, Anger and Sadness marbles) ----
+  function faceSvg(kind, ink) {
+    const P = '#1d1b26';
+    const line = 'fill="none" stroke="' + ink + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"';
+    const eyes = (r, ry, dx, dy, pr) =>
+      '<ellipse cx="17" cy="17" rx="' + r + '" ry="' + ry + '" fill="#fff"/>' +
+      '<ellipse cx="31" cy="17" rx="' + r + '" ry="' + ry + '" fill="#fff"/>' +
+      '<circle cx="' + (17 + dx) + '" cy="' + (17 + dy) + '" r="' + pr + '" fill="' + P + '"/>' +
+      '<circle cx="' + (31 + dx) + '" cy="' + (17 + dy) + '" r="' + pr + '" fill="' + P + '"/>';
+    const lids = c => '<path d="M11.5 17 A5.5 5.5 0 0 1 22.5 17 Z M25.5 17 A5.5 5.5 0 0 1 36.5 17 Z" fill="' + c + '"/>';
+    const f = {
+      joy: eyes(5, 5.5, 0, 0, 2.4) +
+        '<path d="M14 25 Q24 37 34 25 Z" fill="' + ink + '"/>',
+      sadness: eyes(5, 5, 0, 1.6, 2.2) +
+        '<path d="M11 10 L20 7 M28 7 L37 10 M18 32 Q24 27 30 32" ' + line + '/>' +
+        '<path d="M13 24 q-1.6 3 0 4 q1.6 -1 0 -4 Z" fill="#fff" opacity="0.85"/>',
+      anger: eyes(5.5, 3.6, 0, 0.6, 2.2) +
+        '<path d="M10 8 L21 13 M27 13 L38 8" ' + line + '/>' +
+        '<rect x="15" y="25.5" width="18" height="6" rx="1.5" fill="#fff" stroke="' + ink + '" stroke-width="2"/>' +
+        '<path d="M15 28.5 H33 M21 25.5 V31.5 M27 25.5 V31.5" fill="none" stroke="' + ink + '" stroke-width="1.4"/>',
+      confused: eyes(5, 5.5, -1.3, -1.6, 2.3) +
+        '<path d="M10 10 Q14 3.5 20 6.5 M28 11 L37 9 M17 31 Q20.5 27.5 24 30 T31 28" ' + line + '/>',
+      fear: eyes(6.5, 6.5, 0, -0.5, 1.8) +
+        '<path d="M10 7 Q14 3 20 6 M28 6 Q34 3 38 7 M17 32 q2 -2.5 3.5 0 t3.5 0 t3.5 0 t3.5 0" ' + line + '/>',
+      disgust: eyes(5, 4, 1.4, 0.6, 2) +
+        '<path d="M11 10 H20 M28 9 Q32 4.5 37 8.5 M17 30 Q21 26.5 24.5 29.5 Q28.5 32.5 32 27.5" ' + line + '/>',
+      anxiety: eyes(6, 6.2, 0, 0, 2.3) +
+        '<path d="M10 8 q3 -3 5 -1 t5 -1 M28 6 q3 -2 5 1 t5 1" ' + line + '/>' +
+        '<rect x="12" y="24" width="24" height="10" rx="5" fill="' + ink + '"/>' +
+        '<path d="M15 24.5 h18 v3 h-18 Z" fill="#fff"/>',
+      embarrassment: eyes(5, 5, 0, 2.6, 2.2) +
+        '<circle cx="9" cy="26" r="4" fill="#fff" opacity="0.35"/><circle cx="39" cy="26" r="4" fill="#fff" opacity="0.35"/>' +
+        '<path d="M11 11 L19 9 M29 9 L37 11 M20 31 q2 -1.5 4 0 t4 0" ' + line + '/>',
+      envy: eyes(7, 7.2, 0, 0.5, 4.6) +
+        '<circle cx="15" cy="15" r="1.5" fill="#fff"/><circle cx="29" cy="15" r="1.5" fill="#fff"/>' +
+        '<circle cx="18.5" cy="19.5" r="0.8" fill="#fff"/><circle cx="32.5" cy="19.5" r="0.8" fill="#fff"/>' +
+        '<ellipse cx="24" cy="32" rx="2" ry="2.4" fill="' + ink + '"/>',
+      ennui: eyes(5.5, 4.5, 1.2, 1.2, 2) + lids('#6e70d6') +
+        '<path d="M11.5 17 H22.5 M25.5 17 H36.5 M16 30 H32" ' + line + '/>',
+    };
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 40" aria-hidden="true">' + (f[kind] || '') + '</svg>';
+  }
+
+  const catImages = MOODS.map(m => {
+    const img = new Image();
+    img.onload = () => { buildSprites(); drawPicker(); };
+    img.src = m.img ? m.img + '?v=' + ASSET_V : 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(faceSvg(m.face, m.ink));
+    return img;
+  });
+
+  // Draws one marble centred at (0, 0) with radius pr. Cat marbles: the cut-out cat inside the glass
+  // on a light wash of its family colour, a little deeper toward the rim. Drawn marbles: a glowing glass body with the face inside.
+  // Both finish with a rim light and glints.
+  function paintMarble(g, idx, pr, glow) {
+    const m = MOODS[idx], rgb = hexRgb(m.hex), img = catImages[idx];
+    if (glow) {
+      g.save();
+      g.shadowColor = 'rgba(' + rgb.join(',') + ',0.7)';
+      g.shadowBlur = glow;
+      g.fillStyle = 'rgba(' + rgb.join(',') + ',0.6)';
+      g.beginPath(); g.arc(0, 0, pr * 0.96, 0, Math.PI * 2); g.fill();
+      g.restore();
+    }
+    if (m.face) {
+      g.save();
+      g.globalAlpha = 0.9;
+      const body = g.createRadialGradient(-pr * 0.25, -pr * 0.3, pr * 0.05, 0, 0, pr);
+      body.addColorStop(0, mix(rgb, [255, 255, 255], 0.7));
+      body.addColorStop(0.45, m.hex);
+      body.addColorStop(1, mix(rgb, [0, 0, 0], 0.32));
+      g.fillStyle = body;
+      g.beginPath(); g.arc(0, 0, pr, 0, Math.PI * 2); g.fill();
+      if (img.complete && img.naturalWidth) {
+        g.globalAlpha = 0.75;
+        const w = pr * 1.45, h = w * 40 / 48;
+        g.drawImage(img, -w / 2, -h / 2 + pr * 0.06, w, h);
+      }
+      g.restore();
+    } else {
+    g.save();
+    g.beginPath(); g.arc(0, 0, pr, 0, Math.PI * 2); g.clip();
+    // light family colour behind the cut-out cat: palest in the middle, a little deeper at the rim
+    const back = g.createRadialGradient(0, -pr * 0.1, pr * 0.1, 0, 0, pr);
+    back.addColorStop(0, mix(rgb, [255, 255, 255], 0.82));
+    back.addColorStop(1, mix(rgb, [255, 255, 255], 0.55));
+    g.fillStyle = back;
+    g.fillRect(-pr, -pr, pr * 2, pr * 2);
+    if (img.complete && img.naturalWidth) {
+      if ('filter' in g) g.filter = 'blur(' + Math.max(0.25, pr * 0.012).toFixed(2) + 'px)';
+      g.globalAlpha = 1;
+      g.drawImage(img, -pr, -pr, pr * 2, pr * 2);
+      if ('filter' in g) g.filter = 'none';
+    }
+    // glass depth: clear in the middle, coloured and darker toward the edge
+    g.globalAlpha = 1;
+    const depth = g.createRadialGradient(-pr * 0.1, -pr * 0.15, pr * 0.55, 0, 0, pr);
+    depth.addColorStop(0, 'rgba(' + rgb.join(',') + ',0)');
+    depth.addColorStop(0.75, 'rgba(' + rgb.join(',') + ',0.12)');
+    depth.addColorStop(1, mix(rgb, [0, 0, 0], 0.3).replace('rgb', 'rgba').replace(')', ',0.45)'));
+    g.fillStyle = depth;
+    g.fillRect(-pr, -pr, pr * 2, pr * 2);
+    // a soft haze across the top, like light inside the glass
+    const haze = g.createLinearGradient(0, -pr, 0, pr * 0.2);
+    haze.addColorStop(0, 'rgba(255,255,255,0.1)');
+    haze.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = haze;
+    g.fillRect(-pr, -pr, pr * 2, pr * 2);
+    g.restore();
+    }
+    // rim light and glints
+    g.strokeStyle = 'rgba(255,255,255,0.28)';
+    g.lineWidth = Math.max(1, pr * 0.06);
+    g.beginPath(); g.arc(0, 0, pr * 0.96, 0, Math.PI * 2); g.stroke();
+    g.save();
+    g.rotate(-0.55);
+    const glint = g.createRadialGradient(-pr * 0.05, -pr * 0.66, 0, -pr * 0.05, -pr * 0.66, pr * 0.34);
+    glint.addColorStop(0, 'rgba(255,255,255,0.55)');
+    glint.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = glint;
+    g.beginPath(); g.ellipse(-pr * 0.05, -pr * 0.66, pr * 0.34, pr * 0.16, 0, 0, Math.PI * 2); g.fill();
+    g.restore();
+    g.fillStyle = 'rgba(255,255,255,0.22)';
+    g.beginPath(); g.arc(pr * 0.45, pr * 0.5, pr * 0.09, 0, Math.PI * 2); g.fill();
+  }
+
+  // ---- picker: five main marbles, plus a More button that opens a side panel ----
+  const moodButtons = [];
+  function makeMoodButton(i, parent, key) {
+    const m = MOODS[i];
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mood';
+    btn.id = 'mood-' + m.name.toLowerCase() + (key ? '' : '-more');
+    btn.style.setProperty('--c', m.hex);
+    btn.title = m.name + (key ? ' (' + key + ')' : '');
+    btn.dataset.mood = i;
+    btn.setAttribute('aria-pressed', i === mood ? 'true' : 'false');
+    btn.setAttribute('aria-label', m.name);
+    btn.innerHTML = '<canvas class="orb" width="128" height="128"></canvas><span class="label">' + m.name + '</span>';
+    btn.addEventListener('click', () => { selectMood(i); closeMore(); });
+    parent.appendChild(btn);
+    moodButtons.push(btn);
+  }
+  PICKER.forEach((i, pos) => makeMoodButton(i, $('moods'), pos + 1));
+  const moreBtn = document.createElement('button');
+  moreBtn.type = 'button';
+  moreBtn.className = 'mood more';
+  moreBtn.id = 'more';
+  moreBtn.title = 'More cat memories';
+  moreBtn.setAttribute('aria-expanded', 'false');
+  moreBtn.setAttribute('aria-controls', 'panel');
+  moreBtn.innerHTML = '<span class="ring"><canvas class="orb" width="128" height="128" hidden></canvas><span class="plus" aria-hidden="true">+</span></span><span class="label">More</span>';
+  moreBtn.addEventListener('click', openMore);
+  $('moods').appendChild(moreBtn);
+  MORE_GROUPS.forEach(g => {
+    const h = document.createElement('p');
+    h.className = 'group';
+    h.style.setProperty('--c', g.hex);
+    h.innerHTML = '<span class="swatch"></span><b>' + g.title + '</b> ' + g.note;
+    $('moreList').appendChild(h);
+    g.ids.forEach(i => makeMoodButton(i, $('moreList'), 0));
+  });
+
+  function drawMarbleOn(c, i) {
+    const g = c.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, c.width, c.height);
+    g.translate(c.width / 2, c.height / 2);
+    paintMarble(g, i, c.width / 2, 0);
+  }
+  function drawPicker() {
+    moodButtons.forEach(btn => drawMarbleOn(btn.querySelector('canvas'), Number(btn.dataset.mood)));
+    renderMore();
+  }
+  // The More button shows the chosen side-panel marble, so kids can see what they picked.
+  function renderMore() {
+    const extra = !PICKER.includes(mood);     // chosen from the panel and not in the main row
+    const c = moreBtn.querySelector('canvas');
+    c.hidden = !extra;
+    moreBtn.querySelector('.plus').hidden = extra;
+    moreBtn.setAttribute('aria-pressed', extra ? 'true' : 'false');
+    moreBtn.style.setProperty('--c', extra ? MOODS[mood].hex : 'transparent');
+    moreBtn.querySelector('.label').textContent = extra ? MOODS[mood].name : 'More';
+    if (extra) drawMarbleOn(c, mood);
+  }
+  function selectMood(i) {
+    mood = i;
+    moodButtons.forEach(b => b.setAttribute('aria-pressed', Number(b.dataset.mood) === i ? 'true' : 'false'));
+    renderMore();
+  }
+
+  function openMore() {
+    $('panel').classList.add('open');
+    $('panel').setAttribute('aria-hidden', 'false');
+    $('scrim').hidden = false;
+    moreBtn.setAttribute('aria-expanded', 'true');
+    const current = $('moreList').querySelector('[aria-pressed="true"]') || $('moreList').querySelector('.mood');
+    if (current) current.focus({ preventScroll: true });
+  }
+  function closeMore() {
+    if (!$('panel').classList.contains('open')) return;
+    $('panel').classList.remove('open');
+    $('panel').setAttribute('aria-hidden', 'true');
+    $('scrim').hidden = true;
+    moreBtn.setAttribute('aria-expanded', 'false');
+  }
+  $('closeMore').addEventListener('click', closeMore);
+  $('scrim').addEventListener('click', closeMore);
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeMore(); return; }
+    if (mode !== 'play') return;
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= PICKER.length) selectMood(PICKER[n - 1]);
+    if (n === PICKER.length + 1) openMore();
+  });
+
+  // ---- falling marble sprites (one per feeling, redrawn on resize) ----
+  const SPRITE_R = R * 1.6;                // sprites are drawn this big and scaled down per marble
+  let sprites = [], scale = 1, spriteHalf = 0;
+  function buildSprites() {
+    layerKey = '';
+    const pr = SPRITE_R * scale;             // sprite marble radius in canvas pixels
+    const glow = pr * 0.4;
+    const size = Math.ceil((pr + glow) * 2);
+    spriteHalf = size / 2;
+    sprites = MOODS.map((m, idx) => {
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const g = c.getContext('2d');
+      g.translate(size / 2, size / 2);
+      paintMarble(g, idx, pr, glow);
+      return c;
+    });
+  }
+  drawPicker();
+
+  // ---- sharing (Firebase Realtime Database, no sign-in) ----
+  // Drops live beside the sand at pours/c<gen>, so Start fresh clears both.
+  const cfg = window.SANDFALL_CONFIG || {};
+  const fbConfig = cfg.firebase || {};
+  const configured = !!(window.firebase && fbConfig.databaseURL && !/your-project/i.test(fbConfig.databaseURL));
+  let fdb = null;
+  let canWrite = true, connected = false;
+  let poursQuery = null, screens = [];
+  let stateGen = 'g0';
+
+  function send(ch) {
+    if (!fdb || !canWrite || gen === 'local' || gen === 'solo') return;
+    fdb.ref('pours/' + gen + '/' + ch.i)
+      .set(Object.assign({ i: ch.i, k: ch.k, c: ch.c, r: ch.r, s: ch.s, l: ch.l, p: ch.p.join(',') }, ch.t ? { t: ch.t } : {}))
+      .catch(e => {
+        if (/permission/i.test((e && (e.code || e.message)) || '')) {
+          canWrite = false;
+          canPour = false;
+          endStrokes();
+          showNotice("This screen can't add memories right now. Check the database rules in the setup guide.");
+        }
+      });
+  }
+
+  function setGen(g) {
+    endStrokes();
+    gen = g;
+    resetLog();
+    if (poursQuery) poursQuery.off();
+    const myGen = g;
+    poursQuery = fdb.ref('pours/' + g).orderByChild('k');
+    poursQuery.on('child_added', snap => {
+      if (myGen !== gen) return;
+      const raw = snap.val();
+      if (!raw || typeof raw.p !== 'string') return;
+      raw.p = raw.p.split(',').map(Number);
+      const ch = valid(raw);
+      if (ch) addChunk(ch, true);
+    }, () => showNotice('Could not read the shared memories. Check the database rules in the setup guide.'));
+  }
+
+  function showNotice(text) {
+    const n = $('notice');
+    n.textContent = text;
+    n.hidden = !text;
+  }
+
+  function renderStatus() {
+    const el = $('status'), txt = $('statusText');
+    el.classList.toggle('live', !!fdb && connected);
+    if (!fdb) { txt.textContent = gen === 'local' ? 'Connecting…' : 'This screen only'; return; }
+    if (!connected) { txt.textContent = 'Connecting…'; return; }
+    const mine = screens.filter(s => s && (s.mode === 'mplay' || s.mode === 'mdisplay'));
+    const tablets = mine.filter(s => s.mode === 'mplay').length;
+    if (mode === 'display') txt.textContent = 'Live · ' + tablets + (tablets === 1 ? ' tablet' : ' tablets');
+    else txt.textContent = 'Live · ' + mine.length + (mine.length === 1 ? ' screen' : ' screens');
+  }
+
+  const presenceMode = () => (mode === 'display' ? 'mdisplay' : 'mplay');
+
+  function connect() {
+    if (!configured) {
+      gen = 'solo';
+      showNotice('Sharing is off: add your Firebase settings to config.js to link screens together.');
+      renderStatus();
+      return;
+    }
+    try {
+      firebase.initializeApp(fbConfig);
+      fdb = firebase.database();
+    } catch (e) {
+      fdb = null; gen = 'solo';
+      showNotice('Firebase settings in config.js could not be read. Copy them again from the Firebase console.');
+      renderStatus();
+      return;
+    }
+    fdb.ref('.info/serverTimeOffset').on('value', s => { clockOffset = Number(s.val()) || 0; });
+    fdb.ref('.info/connected').on('value', s => {
+      connected = !!s.val();
+      if (connected) {
+        const me = fdb.ref('screens/' + session);
+        me.onDisconnect().remove();
+        me.set({ mode: presenceMode() }).catch(() => {});
+      }
+      renderStatus();
+    });
+    fdb.ref('screens').on('value', s => {
+      const v = s.val();
+      screens = v && typeof v === 'object' ? Object.values(v) : [];
+      renderStatus();
+    }, () => {});
+    fdb.ref('state/gen').on('value', s => {
+      const v = s.val();
+      stateGen = typeof v === 'string' && /^[a-z0-9]{1,24}$/i.test(v) ? v : 'g0';
+      const g = 'c' + stateGen;
+      if (g !== gen) setGen(g);
+    }, () => showNotice('Could not connect to the shared memories. Check the database rules in the setup guide.'));
+  }
+
+  // ---- teacher controls (display) ----
+  let armTimer = 0;
+  $('fresh').addEventListener('click', async () => {
+    const btn = $('fresh');
+    if (!btn.classList.contains('armed')) {
+      btn.classList.add('armed');
+      btn.textContent = 'Tap again to clear everything';
+      clearTimeout(armTimer);
+      armTimer = setTimeout(() => { btn.classList.remove('armed'); btn.textContent = 'Start fresh'; }, 4000);
+      return;
+    }
+    clearTimeout(armTimer);
+    btn.classList.remove('armed');
+    btn.textContent = 'Start fresh';
+    if (!fdb) { resetLog(); return; }
+    if (!teacherCode) {
+      showNotice('Add your teacher code to the address: …/cat-memories/#teacher-YOURCODE');
+      return;
+    }
+    const oldSand = stateGen, g = 'g' + Date.now().toString(36);
+    try {
+      await fdb.ref('state').set({ gen: g, key: teacherCode });
+      showNotice('');
+      fdb.ref('pours/c' + oldSand).remove().catch(() => {});
+      fdb.ref('pours/s' + oldSand).remove().catch(() => {});
+      fdb.ref('pours/m' + oldSand).remove().catch(() => {});
+      fdb.ref('pours/' + oldSand).remove().catch(() => {});
+    } catch (_) {
+      showNotice("Could not start fresh. Check that the code in this address matches the one in your database rules.");
+    }
+  });
+  $('fs').addEventListener('click', () => {
+    const el = document.documentElement;
+    if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); return; }
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => { $('fs').hidden = true; });
+    else $('fs').hidden = true;
+  });
+
+  // ---- modes ----
+  // #play (or no hash): marbles + dropping
+  // #display: the memories only
+  // #teacher-CODE: the display plus Start fresh
+  let teacherCode = '';
+  function applyMode() {
+    let h = '';
+    try { h = decodeURIComponent(location.hash.slice(1)); } catch (_) {}
+    const t = /^teacher(?:-([A-Za-z0-9_-]{1,64}))?$/.exec(h);
+    teacherCode = t && t[1] ? t[1] : '';
+    mode = t || h === 'display' ? 'display' : 'play';
+    document.body.dataset.mode = mode;
+    $('dock').hidden = mode !== 'play';
+    $('foot').hidden = mode !== 'display';
+    $('fresh').hidden = !t;
+    if (mode === 'display') {
+      endStrokes();
+      closeMore();
+      $('hint').innerHTML = t ? 'Classroom display · teacher' : 'Classroom display';
+      $('emptyText').textContent = 'Waiting for memories. Open the play link on a tablet and tap to drop one.';
+    } else {
+      canPour = canWrite;
+      $('hint').innerHTML = 'Pick a cat memory, then tap to drop it. Tap a memory to pop it into sand.<span class="hint-wide"> Tap More for extra cats.</span>';
+      $('emptyText').textContent = 'Pick a feeling below, then tap anywhere in the box.';
+    }
+    if (fdb && connected) fdb.ref('screens/' + session).set({ mode: presenceMode() }).catch(() => {});
+    renderStatus();
+  }
+  window.addEventListener('hashchange', applyMode);
+
+  // ---- layout + render ----
+  function fit() {
+    const r = box.getBoundingClientRect();
+    const s = Math.max(0.1, Math.min(r.width / GW, r.height / GH));
+    const cssW = Math.floor(GW * s), cssH = Math.floor(GH * s);
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(cssW * dpr));
+    canvas.height = Math.max(1, Math.round(cssH * dpr));
+    scale = canvas.width / GW;
+    buildSprites();
+    layerKey = '';
+  }
+  new ResizeObserver(fit).observe(box);
+
+  // Sand is drawn from the grid, one pixel per grain, then scaled up without smoothing.
+  const sandCanvas = document.createElement('canvas');
+  sandCanvas.width = SW; sandCanvas.height = SH;
+  const sctx = sandCanvas.getContext('2d');
+  const sImg = sctx.createImageData(SW, SH);
+  const sBuf = new Uint32Array(sImg.data.buffer);
+  let sandDrawnFor = -1;
+  function updateSand(now, flying) {
+    if (!flying && sandDrawnFor === worldVersion) return;
+    sandDrawnFor = flying ? -1 : worldVersion;
+    sBuf.set(sand);
+    for (const a of flying) {
+      const f = Math.floor((now - a.t0) / STEP_MS) - a.sandStart;
+      const g = a.grains, land = g.land;
+      for (let k = 0, j = 0; k < g.length; k += 5, j++) {
+        if (f >= land[j]) continue;                 // landed: the grid already shows it
+        sBuf[g[k + 3] * SW + g[k + 2]] = 0;         // not there yet
+        if (f < 0) continue;
+        const p = f / land[j];
+        const cx = Math.round(g[k] + (g[k + 2] - g[k]) * Math.min(1, p * 1.6));
+        const cy = Math.round(g[k + 1] + (g[k + 3] - g[k + 1]) * p * p);
+        if (cx >= 0 && cx < SW && cy >= 0 && cy < SH) sBuf[cy * SW + cx] = g[k + 4];
+      }
+    }
+    sctx.putImageData(sImg, 0, 0);
+  }
+
+  // Settled marbles are drawn once into a layer and reused until something changes.
+  const layer = document.createElement('canvas');
+  const lctx = layer.getContext('2d');
+  let layerKey = '';
+
+  function drawMarbleTo(g, c, x, y, r, alpha) {
+    const spr = sprites[c];
+    if (!spr) return;
+    const h = spriteHalf * (r / SPRITE_R);
+    g.globalAlpha = alpha;
+    g.drawImage(spr, x * scale - h, y * scale - h, h * 2, h * 2);
+  }
+  const drawMarble = (c, x, y, r, alpha) => drawMarbleTo(ctx, c, x, y, r, alpha);
+
+  let lastCount = -1, lastEmpty = null;
+  function render(now) {
+    const before = anims.length;
+    anims = anims.filter(a => Math.floor((now - a.t0) / STEP_MS) < a.end);
+    if (anims.length !== before) animsVersion++;
+    // marbles that are moving, merging, falling or bursting are drawn every frame; the rest come from the layer
+    const busy = new Set();
+    for (const a of anims) for (const id of a.tracks.keys()) busy.add(id);
+    for (const [id, t] of popping) { if (balls.some(b => b.i === id)) busy.add(id); else if (now - t > 4000) popping.delete(id); }
+    const key = worldVersion + ':' + animsVersion + ':' + popping.size + ':' + canvas.width;
+    if (key !== layerKey) {
+      layerKey = key;
+      if (layer.width !== canvas.width || layer.height !== canvas.height) { layer.width = canvas.width; layer.height = canvas.height; }
+      lctx.setTransform(1, 0, 0, 1, 0, 0);
+      lctx.clearRect(0, 0, layer.width, layer.height);
+      const still = balls.filter(b => !busy.has(b.i)).sort((p, q) => q.r - p.r);   // big ones first
+      for (const b of still) drawMarbleTo(lctx, b.c, b.x, b.y, b.r, 1);
+      lctx.globalAlpha = 1;
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const flying = anims.filter(a => a.grains && Math.floor((now - a.t0) / STEP_MS) - a.sandStart < 120);
+    if (sandCount || flying.length) {
+      updateSand(now, flying);
+      ctx.imageSmoothingEnabled = false;
+      ctx.globalAlpha = 1;
+      ctx.drawImage(sandCanvas, 0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = true;
+    }
+    ctx.globalAlpha = 1;
+    ctx.drawImage(layer, 0, 0);
+    const visible = balls.filter(b => !busy.has(b.i));
+    const drawn = new Set();                   // a marble in several animations is drawn once, from the newest
+    for (let ai = anims.length - 1; ai >= 0; ai--) {
+      const a = anims[ai];
+      const f = Math.floor((now - a.t0) / STEP_MS);
+      for (const [id, t] of a.tracks) {
+        if (drawn.has(id)) continue;
+        if (f >= t.f.length) continue;
+        const fr = t.f[f];
+        if (!fr) continue;
+        drawn.add(id);
+        if (popping.has(id) && balls.some(b => b.i === id)) continue;   // drawn bursting below
+        drawMarble(t.c, fr[0], fr[1], fr[2], fr[3]);
+        if (fr[3] > 0.6) visible.push({ i: id, c: t.c, x: fr[0], y: fr[1], r: fr[2] });
+      }
+    }
+    // marbles this screen just tapped: start bursting right away, before the pop is shared
+    for (const [id, t0] of popping) {
+      const b = balls.find(o => o.i === id);
+      if (!b) continue;
+      const k = Math.min(1, (now - t0) / 350);
+      drawMarble(b.c, b.x, b.y, b.r * (1 + 0.2 * k), 1 - 0.75 * k);
+    }
+    onScreen = visible.filter(b => !popping.has(b.i));
+    // memories forming where they were tapped, before they drop
+    const ln = logicalNow();
+    for (let j = committed; j < chunks.length; j++) {
+      const ch = chunks[j];
+      if (ch.l === 1) continue;                   // a pop waiting its turn
+      const t = Math.max(0, Math.min(1, (ln - ch.k) / HORIZON));
+      drawMarble(ch.c, ch.p[0], Math.min(GH - R, Math.max(R, ch.p[1])), R * (0.35 + 0.65 * t), 0.25 + 0.6 * t);
+    }
+    ctx.globalAlpha = 1;
+    let count = 0;
+    for (const b of balls) count += b.n;
+    if (count !== lastCount) {
+      lastCount = count;
+      const t = count.toLocaleString() + (count === 1 ? ' memory' : ' memories');
+      $('count').textContent = t;
+      $('dcount').textContent = t;
+    }
+    const empty = balls.length === 0 && sandCount === 0 && anims.length === 0 && committed === chunks.length;
+    if (empty !== lastEmpty) { lastEmpty = empty; $('empty').hidden = !empty; }
+  }
+
+  function tick() {
+    const now = performance.now();
+    for (const h of holds.values()) {
+      if (now - h.last >= REPEAT_MS && canAct(now)) { h.last = now; dropAt(h.x, h.y); }
+    }
+    commit(now);
+    render(now);
+    requestAnimationFrame(tick);
+  }
+
+  applyMode();
+  fit();
+  requestAnimationFrame(tick);
+  connect();
+})();
+</script>
+
+</body>
+</html>
