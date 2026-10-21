@@ -365,12 +365,12 @@
   <div class="dock" id="dock">
     <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
     <span class="count" id="count">0 memories</span>
-    <span class="build" title="Version of this page">build 2026-10-21b</span>
+    <span class="build" title="Version of this page">build 2026-10-21c</span>
   </div>
 
   <footer class="foot" id="foot" hidden>
     <span class="count" id="dcount">0 memories</span>
-    <span class="build" title="Version of this page">build 2026-10-21b</span>
+    <span class="build" title="Version of this page">build 2026-10-21c</span>
     <div class="teacher">
       <button class="btn" id="fs" type="button">Full screen</button>
       <button class="btn" id="fresh" type="button" hidden>Start fresh</button>
@@ -467,25 +467,35 @@
   // Math.sqrt are used, so every screen gets exactly the same world.
   let balls = [];                 // {x, y, r, c, i (id), n (memories inside)}
   const TOUCH = 0.5;              // how close counts as touching
-  const CELL = 2, SW = GW / CELL, SH = GH / CELL;   // sand grid: one grain per 2x2 world units
-  const SAND_R = 1;               // a grain's size when a marble bumps into it
+  const CELL = 1, SW = GW / CELL, SH = GH / CELL;   // sand grid: one grain per world unit (fine, like the first Sandfall)
+  const SAND_R = 0.6;             // a grain's size when a marble bumps into it
   let sand = new Uint32Array(SW * SH);              // 0 = empty, otherwise the grain's colour (RGBA)
   let sandCount = 0;
-  const solid = new Uint8Array(SW * SH);            // cells inside a marble, rebuilt before sand moves
+  const solid = new Uint32Array(SW * SH);           // cells inside a marble: stamped with solidVer when marked
 
+  let solidVer = 1, solidSig = NaN;
   function markMarbles() {
-    solid.fill(0);
+    // skip if no marble has moved since the last time (each marble weighted differently and
+    // squared too, so two marbles pushed apart by the same amount still change the fingerprint)
+    let sig = balls.length;
+    for (let k = 0; k < balls.length; k++) {
+      const b = balls[k], w = 1 + k * 0.618;
+      sig += (b.x * 3.1 + b.y * 7.3 + b.r * 11.7) * w + (b.x * b.x + b.y * b.y) * 0.001;
+    }
+    if (sig === solidSig) return;
+    solidSig = sig;
+    solidVer++;
     for (const b of balls) {
       const x0 = Math.max(0, Math.floor((b.x - b.r) / CELL)), x1 = Math.min(SW - 1, Math.floor((b.x + b.r) / CELL));
       const y0 = Math.max(0, Math.floor((b.y - b.r) / CELL)), y1 = Math.min(SH - 1, Math.floor((b.y + b.r) / CELL));
       const rr = b.r * b.r;
       for (let gy = y0; gy <= y1; gy++) for (let gx = x0; gx <= x1; gx++) {
         const dx = (gx + 0.5) * CELL - b.x, dy = (gy + 0.5) * CELL - b.y;
-        if (dx * dx + dy * dy < rr) solid[gy * SW + gx] = 1;
+        if (dx * dx + dy * dy < rr) solid[gy * SW + gx] = solidVer;
       }
     }
   }
-  const openCell = (gx, gy) => gx >= 0 && gx < SW && gy >= 0 && gy < SH && !sand[gy * SW + gx] && !solid[gy * SW + gx];
+  const openCell = (gx, gy) => gx >= 0 && gx < SW && gy >= 0 && gy < SH && !sand[gy * SW + gx] && solid[gy * SW + gx] !== solidVer;
 
   // A grain falls from (gx, gy), sliding diagonally off whatever it lands on, until it rests.
   function pourGrain(gx, gy, col, rand) {
@@ -499,29 +509,44 @@
     const idx = gy * SW + gx;
     sand[idx] = col;
     sandCount++;
+    if (gy < sandTop[gx]) sandTop[gx] = gy;
+    patch[(gy >> 3) * PW + (gx >> 3)]++;
     return idx;
+  }
+  // Takes the grain at i out of the grid.
+  function liftGrain(i) {
+    sand[i] = 0; sandCount--;
+    const gx = i % SW, gy = (i - gx) / SW;
+    patch[(gy >> 3) * PW + (gx >> 3)]--;
+    if (gy === sandTop[gx]) { let y = gy; while (y < SH && !sand[y * SW + gx]) y++; sandTop[gx] = y; }
   }
 
   // Sand left with nothing under it (a marble moved away) pours down. Bottom rows first.
-  function pourLooseSand(rand) {
-    if (!sandCount) return null;
+  function pourLooseSand(rand, spots) {
+    if (!sandCount || !spots || !spots.length) return null;
     markMarbles();
+    // only the columns where something moved (spots), widening as grains slide sideways
+    let c0 = SW, c1 = -1;
+    for (const g of spots) { c0 = Math.min(c0, Math.floor((g.x - g.r) / CELL) - 2); c1 = Math.max(c1, Math.floor((g.x + g.r) / CELL) + 2); }
+    c0 = Math.max(0, c0); c1 = Math.min(SW - 1, c1);
     let x0 = SW, x1 = -1, y0 = SH, y1 = -1;
-    for (let pass = 0; pass < 4; pass++) {
-      let moved = 0;
+    for (let pass = 0; pass < 40 && c0 <= c1; pass++) {
+      let moved = 0, m0 = c0, m1 = c1;
       for (let gy = SH - 2; gy >= 0; gy--) {
-        for (let gx = 0; gx < SW; gx++) {
+        for (let gx = c0; gx <= c1; gx++) {
           const i = gy * SW + gx, col = sand[i];
           if (!col) continue;
           if (openCell(gx, gy + 1) || openCell(gx - 1, gy + 1) || openCell(gx + 1, gy + 1)) {
-            sand[i] = 0; sandCount--;
-            pourGrain(gx, gy, col, rand);
+            liftGrain(i);
+            const to = pourGrain(gx, gy, col, rand), tx = to % SW;
             moved++;
             if (gx < x0) x0 = gx; if (gx > x1) x1 = gx; if (gy < y0) y0 = gy; if (gy > y1) y1 = gy;
+            m0 = Math.min(m0, gx - 1, tx - 1); m1 = Math.max(m1, gx + 1, tx + 1);
           }
         }
       }
       if (!moved) break;
+      c0 = Math.max(0, m0); c1 = Math.min(SW - 1, m1);
     }
     if (x1 < 0) return null;
     const w = (x1 - x0 + 1) * CELL, h = (y1 - y0 + 1) * CELL;
@@ -572,19 +597,24 @@
   }
 
   // Highest grain in each sand column, so a marble only checks sand where it can reach it.
-  const sandTop = new Int16Array(SW);
+  // Kept up to date by pourGrain/liftGrain; rebuilt after a rollback or reset.
+  const sandTop = new Int16Array(SW).fill(SH);
+  // Grains per 8x8 patch of the grid (also kept up to date by pourGrain/liftGrain).
+  const PW = Math.ceil(SW / 8), PH = Math.ceil(SH / 8);
+  const patch = new Int32Array(PW * PH);
   function refreshSandTop() {
     for (let gx = 0; gx < SW; gx++) {
       let gy = 0;
       while (gy < SH && !sand[gy * SW + gx]) gy++;
       sandTop[gx] = gy;
     }
+    patch.fill(0);
+    for (let i = 0; i < sand.length; i++) if (sand[i]) { const gx = i % SW; patch[(((i - gx) / SW) >> 3) * PW + (gx >> 3)]++; }
   }
 
   // Runs the world until every moving marble is asleep. `movers` are already in `balls`.
   // Returns the marbles that moved, each with its starting spot in sx, sy.
   function simulate(movers, tl) {
-    if (sandCount) refreshSandTop();
     const moved = new Set();
     let awake = 0;
     for (const b of movers) {
@@ -660,6 +690,7 @@
             for (let gx = gx0; gx <= gx1; gx++) {
               if (gy1 < sandTop[gx]) continue;       // this column's sand is below the marble
               for (let gy = Math.max(gy0, sandTop[gx]); gy <= gy1; gy++) {
+                if (!patch[(gy >> 3) * PW + (gx >> 3)]) { gy |= 7; continue; }   // empty patch: jump past it
                 if (!sand[gy * SW + gx]) continue;
                 const cx = (gx + 0.5) * CELL, cy = (gy + 0.5) * CELL;
                 let dx = a.x - cx, dy = a.y - cy;
@@ -743,8 +774,10 @@
       if (worst < 0.05) break;
     }
     const nudged = [];
+    relaxAll.touched = [];
     for (const [b, [x, y]] of start) {
       if (!balls.includes(b)) continue;
+      relaxAll.touched.push({ x, y, r: b.r });
       unwedge(b);
       if (sandCount) shiftSandOut(b);
       const dx = b.x - x, dy = b.y - y;
@@ -846,7 +879,7 @@
       const i = gy * SW + gx;
       if (!sand[i]) continue;
       const dx = (gx + 0.5) * CELL - b.x, dy = (gy + 0.5) * CELL - b.y;
-      if (dx * dx + dy * dy < b.r * b.r) { caught.push(gx, sand[i]); sand[i] = 0; sandCount--; }
+      if (dx * dx + dy * dy < b.r * b.r) { caught.push(gx, sand[i]); liftGrain(i); }
     }
     if (!caught.length) return;
     markMarbles();
@@ -921,6 +954,7 @@
     const queue = [];
     const woken = new Map();                   // how often each marble was woken for losing support
     let made = 0, pending = null;
+    let sandSpots = gone.slice();              // where sand may have lost what held it up
     for (let round = 0; round < 40; round++) {
       if (gone.length) {
         for (const b of balls) {
@@ -936,6 +970,7 @@
         const hit = lastHit, flying = lastFlying.filter(b => balls.includes(b));
         movers = [];
         for (const b of moved) {
+          sandSpots.push({ x: b.sx, y: b.sy, r: b.r });   // sand may slip wherever a marble left
           if (flying.includes(b)) continue;
           const dx = b.x - b.sx, dy = b.y - b.sy;
           if (dx * dx + dy * dy > 1) gone.push({ x: b.sx, y: b.sy, r: b.r });   // a wiggle doesn't count
@@ -953,28 +988,39 @@
         }
         if (flying.length) { movers = flying; continue; }
       }
-      const poured = pourLooseSand(rand);
+      sandSpots.push(...gone);
+      const poured = pourLooseSand(rand, sandSpots);
+      sandSpots = [];
       if (poured) gone.push(poured);
       if (gone.length) continue;               // something may have lost its support
       const nudged = relaxAll();               // nothing inside anything else
+      const relaxTouched = relaxAll.touched;
       if (nudged.length) {
         for (const { b, x, y } of nudged) { gone.push({ x, y, r: b.r }); if (tl) tl.put(b, tl.now(), b.x, b.y, b.r, 1); }
+        sandSpots.push(...relaxTouched);         // even marbles nudged a hair can leave sand hanging
         if (tl) tl.advance(1);
         continue;
       }
-      const settledSand = pourLooseSand(rand); // tiny nudges can leave a grain hanging
+      const settledSand = pourLooseSand(rand, relaxTouched); // tiny nudges can leave a grain hanging
       if (settledSand) { gone = [settledSand]; continue; }
       let mg = null;                           // touching marbles of the same kind combine
       while (queue.length && !mg) { const a = queue.shift(); if (balls.includes(a)) mg = findMerge(a); }
       if (!mg) mg = anyMerge();
-      if (!mg) return;
+      if (!mg) {
+        // safety net: one sweep of the whole box so no grain is ever left hanging
+        const swept = pourLooseSand(rand, [{ x: GW / 2, y: GH / 2, r: GW }]);
+        if (swept) { gone = [swept]; continue; }
+        return;
+      }
       movers = [combine(mg)];
     }
+    pourLooseSand(rand, [{ x: GW / 2, y: GH / 2, r: GW }]);   // ran out of rounds: still leave no grain hanging
 
     // Replaces the pair with their combined marble (it then rolls to rest).
     function combine(mg) {
       const m = { x: mg.x, y: mg.y, r: mg.r, c: mg.a.c, i: ch.i + '/' + (++made), n: mg.a.n + mg.b.n, vx: 0, vy: 0 };
       gone = [{ x: mg.a.x, y: mg.a.y, r: mg.a.r }, { x: mg.b.x, y: mg.b.y, r: mg.b.r }];
+      sandSpots.push(...gone);
       balls = balls.filter(o => o !== mg.a && o !== mg.b);
       if (tl) tl.merge(mg.a, mg.b, m);
       balls.push(m);
@@ -994,10 +1040,24 @@
     playOut(ch, tl, [ball], []);
   }
 
-  function grainColour(rgb, s) {
-    const k = 0.82 + s * 0.26;
-    const r = Math.min(255, rgb[0] * k) | 0, g = Math.min(255, rgb[1] * k) | 0, b = Math.min(255, rgb[2] * k) | 0;
-    return ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;   // little-endian RGBA
+  // A popped memory's sand isn't one flat colour: grains run from a light tint, through the
+  // marble's colour, to a deep shade, in soft bands, so piles build up in layered lines like
+  // sand art. (Plain arithmetic only, so every screen gets the same pattern.)
+  function sandPalette(rgb) {
+    return {
+      light: rgb.map((v, i) => v + ([255, 246, 228][i] - v) * 0.5),   // warm, pale tint
+      mid: rgb,
+      deep: rgb.map((v, i) => v + ([30, 16, 52][i] - v) * 0.4),        // cool, deep shade
+    };
+  }
+  const tri = x => { const f = x - Math.floor(x); return f < 0.5 ? f * 2 : 2 - f * 2; };   // 0..1..0 wave
+  function grainColour(pal, t, s) {
+    const k = 0.94 + s * 0.12;                 // a little grain-to-grain sparkle
+    const lo = t < 0.5, a = lo ? pal.light : pal.mid, b = lo ? pal.mid : pal.deep, u = lo ? t * 2 : t * 2 - 1;
+    const r = Math.min(255, (a[0] + (b[0] - a[0]) * u) * k) | 0;
+    const g = Math.min(255, (a[1] + (b[1] - a[1]) * u) * k) | 0;
+    const bl = Math.min(255, (a[2] + (b[2] - a[2]) * u) * k) | 0;
+    return ((255 << 24) | (bl << 16) | (g << 8) | r) >>> 0;   // little-endian RGBA
   }
 
   // The marble under the tap (the smallest one, if several overlap there).
@@ -1021,18 +1081,21 @@
     // about half the marble's area becomes sand, scattered a little past where it was
     const want = Math.max(8, Math.round(0.5 * 3.14159 * target.r * target.r / (CELL * CELL)));
     const spread = target.r * 1.2;
-    const rgb = hexRgb(MOODS[target.c].hex);
+    const pal = sandPalette(hexRgb(MOODS[target.c].hex));
+    const phase = rand(), bands = 2.5 + rand() * 2, tilt = (rand() - 0.5) * 1.2;   // each pop's own stripes
     const spots = [];
     for (let tries = 0; spots.length < want && tries < want * 8; tries++) {
       const dx = (rand() * 2 - 1) * spread, dy = (rand() * 2 - 1) * spread, s = rand();
       if (dx * dx + dy * dy > spread * spread) continue;
-      spots.push([Math.floor((target.x + dx) / CELL), Math.floor((target.y + dy) / CELL), s]);
+      const yf = (dy / spread + 1) / 2, xf = (dx / spread + 1) / 2;
+      const t = Math.min(1, Math.max(0, 0.5 * yf + 0.5 * tri(yf * bands + xf * tilt + phase)));   // darker lower down, banded
+      spots.push([Math.floor((target.x + dx) / CELL), Math.floor((target.y + dy) / CELL), s, t]);
     }
     spots.sort((p, q) => q[1] - p[1] || p[0] - q[0]);   // lowest grains settle first
     const grains = tl ? [] : null;
-    for (const [gx, gy, s] of spots) {
+    for (const [gx, gy, s, t] of spots) {
       if (!openCell(gx, gy)) continue;     // that spot is solid: no sand appears inside sealed space
-      const col = grainColour(rgb, s);
+      const col = grainColour(pal, t, s);
       const idx = pourGrain(gx, gy, col, rand);
       if (grains) grains.push(gx, gy, idx % SW, (idx - idx % SW) / SW, col);
     }
@@ -1140,6 +1203,7 @@
     const cp = checkpoints[checkpoints.length - 1];
     balls = cp ? copyBalls(cp.balls) : [];
     if (cp) { sand.set(cp.sand); sandCount = cp.sandCount; } else { sand.fill(0); sandCount = 0; }
+    refreshSandTop();
     worldVersion++;
     committed = cp ? cp.idx : 0;
     anims = [];
@@ -1174,7 +1238,7 @@
   function resetLog() {
     chunks = []; seen = new Set(); committed = 0; checkpoints = [];
     everCommitted = new Set(); balls = []; anims = [];
-    sand.fill(0); sandCount = 0;
+    sand.fill(0); sandCount = 0; sandTop.fill(SH); patch.fill(0);
     worldVersion++;
   }
 
