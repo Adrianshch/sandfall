@@ -23,6 +23,8 @@ Named versions are git tags (`git tag -l`). When the user says "save this as ver
 
 - `v4` (2026-10-21): Cat Emotions Tube (`slide.html`): cats enter at the top and travel single file through a winding tube (six rows joined by U-turns, like a marble-run board) and line up from the far end; tap a cat to pop it into sand that fades, and every cat behind rolls forward one place; no merging. `memories.html` (v3) stays live alongside it.
 
+- `v5` (2026-10-21): Cat Emotions ball game (`memories.html`, build 2026-10-21c) with fine 1-unit sand like the original Sandfall, each pop's sand poured in layered bands from a light tint to a deep shade of its colour. The tube (`slide.html`, v4) is unchanged.
+
 To go back to a version, restore its files onto `main` with a new commit (`git checkout vN -- .` then commit and push) instead of rewriting history, so the site and every later version stay intact.
 
 ## Cat Emotions experiment (`memories.html`, page title "Cat Emotions")
