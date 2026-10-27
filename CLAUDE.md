@@ -7,12 +7,16 @@ Shared classroom falling-sand game, hosted on GitHub Pages and synced through Fi
 The `main` branch is the website. GitHub Pages republishes it within a minute or two of every push.
 
 - Repo: https://github.com/Adrianshch/sandfall
-- Site, each page with `#play`, `#display`, `#teacher-CODE`:
-  - Sandfall (v2 sand game): https://adrianshch.github.io/sandfall/sandfall/ — source `sandfall/index.html`
-  - Cat Memories (v5 ball game): https://adrianshch.github.io/sandfall/cat-memories/ — source `cat-memories/index.html`
-  - Cat Emotions Tube (v4): https://adrianshch.github.io/sandfall/slide.html
-- The root `index.html` and `memories.html` only forward old links (keeping the `#...` part) to `sandfall/` and `cat-memories/`. Edit the pages in the folders, not these.
-- Pages in folders load shared files with `../` (`../config.js`, `../images/...`).
+- Site:
+  - Cat Emotions cubbies (v6), three views by path (not hash):
+    - student: https://adrianshch.github.io/sandfall/sandfall/ — source `sandfall/index.html`
+    - class wall: https://adrianshch.github.io/sandfall/sandfall/display/ — source `sandfall/display/index.html`
+    - admin: https://adrianshch.github.io/sandfall/sandfall/admin-cappy/ — source `sandfall/admin-cappy/index.html` (the user chose this path)
+  - Cat Memories (v5 ball game, shared picture, `#play`/`#display`/`#teacher-CODE`): https://adrianshch.github.io/sandfall/cat-memories/ — source `cat-memories/index.html`. Keep it exactly as it is unless the user asks.
+  - Cat Emotions Tube (v4, same hash modes): https://adrianshch.github.io/sandfall/slide.html
+  - The v2 sand game that used to be at `sandfall/` was replaced by v6; it lives on as tag `v2`.
+- The root `index.html` and `memories.html` only forward old links (keeping the `#...` part) to `sandfall/` and `cat-memories/`. Edit the pages in the folders, not these. `sandfall/` forwards an old `#display` or `#teacher...` hash to `display/`.
+- Pages in folders load shared files with `../` (`../config.js`, `../images/...`); pages one level deeper use `../../config.js`. `sandfall/engine.js` finds the cat pictures from its own address.
 
 After a change the user asked for: check it, commit with a short message, then `git push`. Then tell the user the site will update in a minute or two at the GitHub Pages address.
 
@@ -29,6 +33,8 @@ Named versions are git tags (`git tag -l`). When the user says "save this as ver
 - `v4` (2026-10-21): Cat Emotions Tube (`slide.html`): cats enter at the top and travel single file through a winding tube (six rows joined by U-turns, like a marble-run board) and line up from the far end; tap a cat to pop it into sand that fades, and every cat behind rolls forward one place; no merging. `memories.html` (v3) stays live alongside it.
 
 - `v5` (2026-10-21): Cat Emotions ball game (`memories.html`, build 2026-10-21c) with fine 1-unit sand like the original Sandfall, each pop's sand poured in layered bands from a light tint to a deep shade of its colour. The tube (`slide.html`, v4) is unchanged.
+
+- `v6` (in progress, 2026-10-27): Cat Emotions cubbies at `sandfall/` (replacing v2's page): each student has a private cubby running the v5 ball game, a live class wall of every cubby without names, and an admin wall that removes cubbies. See "Cat Emotions cubbies" below.
 
 To go back to a version, restore its files onto `main` with a new commit (`git checkout vN -- .` then commit and push) instead of rewriting history, so the site and every later version stay intact.
 
@@ -59,9 +65,23 @@ Its drops live in Firebase at `pours/c<gen>` (the earlier nine-colour marble tes
 
 Same cats, picker, sharing and modes as `memories.html`, but the world is a single-file queue in a winding tube. The shared state is only the order of the cats (`balls`, front first); positions come from `layout()` along the tube's centre line (`PATH`, `SLOTS`), so screens can't disagree. Adding pushes a cat at the back (ignored when `CAPACITY`, fixed at 70, is reached); popping removes it and everyone behind rolls forward one slot (a ripple in `makeTimeline().roll`). Popped sand is only a fading animation (`drawBursts`), not lasting sand. Its drops live at `pours/s<gen>`; screens report `splay`/`sdisplay`; Start fresh on any page clears it too. Build label `build YYYY-MM-DDtN`.
 
+## Cat Emotions cubbies (v6: `sandfall/`)
+
+The v5 cat ball game, one private picture per student.
+
+- **Student** (`sandfall/index.html`): start screen asks "I'm new" or "I've been here before", then a username. New + name already used: refused ("taken"). Returning + unknown name: a new cubby is made under that name (with a note). Inside the cubby there is no way back except refreshing, which always shows the start again (nothing is remembered in the browser). "Delete my cubby" (with a confirm dialog) deletes it; if the cubby disappears while open (deleted here, on another tablet, or by the admin), the page goes back to the start with a message. Usernames: NFKC, trimmed, spaces collapsed, lower case (`Cubbies.tidyName`).
+- **Display** (`display/`) and **admin** (`admin-cappy/`, `body data-wall="admin"`): both run `wall.js` + `wall.css`. Every cubby is a tile, oldest first, laid out as big as fits (`layout`). Never show names (none are stored anyway). Admin: tap a tile, confirm dialog with a sharp preview, made time and memory count, then Remove. Status pill shows "Catching up…" while any tile still has more than 2 drops waiting.
+- **Engine** (`engine.js`, `window.CatWorld`): the v5 physics, log, timeline and drawing code moved into `createWorld({canvas, checkpoints})` so one page can run many worlds. Behaviour must stay identical to v5 (all the v5 rules above apply: determinism, sand speed-ups, smoothness). Shared across worlds: MOODS, sprites per scale (`spritesFor`), the server clock (`nextKey`/`now`). A world skips drawing when nothing changed (`drawnKey`), which keeps a wall of 30 tiles cheap. The wall keeps 2 checkpoints per world (memory), the student 40.
+- **Saved pictures**: `world.savedState(before)` returns the newest checkpoint whose drops are all older than `before`; `startFrom(state)` starts a world from one (drops up to `upto` are ignored, rollbacks go back to it). `packState`/`unpackState` store it as `{v, k, i, n, b: marbles JSON, s: sand deflated + base64}` (about 50 to 160 KB). The student's tablet saves one (`Cubbies.makeSaver`) once 40 more drops have settled, at most every 30 s, only after it has caught up, only from drops at least 10 s old, and again when the page is hidden. Screens read the picture once, then only drops from its `k` onward (`orderByChild('k').startAt`). Browsers without CompressionStream skip saved pictures and replay everything. Replaying costs about 10 ms per drop, so without saved pictures 25 cubbies x 150 drops take about 35 s to fill the wall.
+- **Firebase** (`cubbies.js`, `window.Cubbies`): `cubbies/<id>` = `{made}` (the wall watches this list), `drops/<id>/<drop>` = the v5 drop records, `snaps/<id>` = the saved picture. `<id>` = SHA-256 hex of `'sandfall-cubby:' + tidyName(username)`, so the database never holds a name. Deleting a cubby removes all three in one `update`. The rules for these three paths are in README.md (v6 setup). The user adds them inside their existing rules (which hold the teacher code and aren't in the repo), so give them a block to paste, not a whole rules file. If those rules change, give the user the new block and say exactly what to replace.
+- The build label is `v6 · build YYYY-MM-DDx` in all three pages; scripts and CSS load with `?v=` the same date, so bump both on every change (GitHub Pages caches for 10 minutes).
+- Testing (scratchpad, not the repo): a fake Firebase (`fakefirebase.js`, shared between tabs through localStorage) served by Playwright in place of the gstatic scripts, plus Node checks that the engine matches v5 exactly and that saved pictures plus later drops equal a full replay. The real database isn't reachable from the cloud container.
+
 ## Files
 
-- `sandfall/index.html`: the sand game (HTML, CSS and JS in one file).
+- `sandfall/index.html`: v6 student page (start screen + cubby).
+- `sandfall/engine.js`, `sandfall/cubbies.js`: v6 game engine and Firebase layer, shared by the three v6 pages.
+- `sandfall/display/index.html`, `sandfall/admin-cappy/index.html`, `sandfall/wall.js`, `sandfall/wall.css`: v6 class wall and admin.
 - `cat-memories/index.html`: the cat ball game.
 - `slide.html`: the cat tube.
 - `index.html`, `memories.html`: forwarders for old links.
@@ -71,6 +91,7 @@ Same cats, picker, sharing and modes as `memories.html`, but the world is a sing
 
 ## Things that must stay true
 
-- Modes come from the URL hash: `#play` (default), `#display`, `#teacher-CODE` (display plus Start fresh).
+- Cat Memories and the Tube take their mode from the URL hash: `#play` (default), `#display`, `#teacher-CODE` (display plus Start fresh).
+- v6 cubbies take their view from the path (`sandfall/`, `sandfall/display/`, `sandfall/admin-cappy/`), never the hash.
 - Every screen must compute the identical picture. Pour placement (`settle`, `pourAt`, `walk`, `applyChunk`) must use only the seeded `rng32` and plain arithmetic: no `Math.random`, `Math.sin`, `Math.cos` or `Math.hypot` there. Changing the grid size (480x300), the pour format or placement rules changes the picture for everyone; old pours in Firebase will replay differently, so suggest Start fresh after such a change.
 - Cosmetic falling particles may use `Math.random`.

@@ -1,0 +1,180 @@
+/* Cat Emotions v6: the class wall (display/ and admin-cappy/). Same look as the cubby page. */
+[hidden] { display: none !important; }
+:root {
+  --bg: #e4e9ed;
+  --sky: #f3f6f8;
+  --box: #fbfcfd;
+  --ink: #1c2530;
+  --muted: #5a6876;
+  --surface: rgba(255, 255, 255, 0.82);
+  --line: rgba(28, 37, 48, 0.12);
+  --accent: #b8612a;
+  --live: #2f9e6a;
+  --warn: #b5482f;
+  --shadow: 0 10px 30px rgba(28, 37, 48, 0.14);
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10151b; --sky: #1a222b; --box: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
+    --surface: rgba(24, 31, 39, 0.84); --line: rgba(232, 237, 242, 0.12);
+    --accent: #e59a5e; --live: #4cc48c; --warn: #f07a5e; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10151b; --sky: #1a222b; --box: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
+  --surface: rgba(24, 31, 39, 0.84); --line: rgba(232, 237, 242, 0.12);
+  --accent: #e59a5e; --live: #4cc48c; --warn: #f07a5e; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-size: 14px;
+  background: linear-gradient(to bottom, var(--sky), var(--bg)) var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: max(14px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+}
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.mark { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mark h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.beta {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 2px 6px 1px;
+}
+.mark p { margin: 0; font-size: 0.82rem; color: var(--muted); }
+.notice { margin: 0; font-size: 0.82rem; font-weight: 600; color: var(--warn) !important; }
+.tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.status.live .dot { background: var(--live); box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 25%, transparent); }
+.status.live { color: var(--ink); }
+.btn {
+  font: 600 0.8rem var(--font-body);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--muted); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.big { padding: 10px 18px; font-size: 0.95rem; }
+.btn.danger { background: var(--warn); color: #fff; border-color: var(--warn); }
+.build { font-size: 0.62rem; color: var(--muted); opacity: 0.7; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* The wall: every cubby as a tile, sized by wall.js so they all fit on screen. */
+.wall { position: relative; flex: 1; min-height: 0; overflow: auto; }
+.grid { display: grid; justify-content: center; align-content: center; min-height: 100%; }
+.tile {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.tile canvas {
+  display: block;
+  background: var(--box);
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px var(--line), var(--shadow);
+}
+.empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; pointer-events: none; }
+.empty p {
+  margin: 0;
+  max-width: 32ch;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1rem, 2.4vw, 1.6rem);
+  line-height: 1.3;
+  color: var(--muted);
+  text-wrap: balance;
+}
+
+/* Admin: tap a tile to remove that cubby. */
+body[data-wall="admin"] .tile { cursor: pointer; }
+body[data-wall="admin"] .tile::after {
+  content: "Remove";
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font: 600 0.72rem var(--font-body);
+  color: #fff;
+  background: var(--warn);
+  border-radius: 999px;
+  padding: 4px 10px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+body[data-wall="admin"] .tile:hover::after, body[data-wall="admin"] .tile:focus-visible::after { opacity: 1; }
+body[data-wall="admin"] .tile:hover canvas, body[data-wall="admin"] .tile:focus-visible canvas { box-shadow: 0 0 0 3px var(--warn), var(--shadow); }
+.tile:focus-visible { outline: none; }
+@media (hover: none) { body[data-wall="admin"] .tile::after { opacity: 0.85; } }
+
+.dialog-back { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(10, 14, 20, 0.45); }
+.dialog {
+  width: min(520px, 100%);
+  box-sizing: border-box;
+  background: var(--bg);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dialog h2 { margin: 0; font: 700 1.3rem var(--font-display); }
+.dialog p { margin: 0; color: var(--muted); line-height: 1.45; }
+.dialog canvas { width: 100%; height: auto; aspect-ratio: 480 / 300; background: var(--box); border-radius: 12px; box-shadow: 0 0 0 1px var(--line); }
+.row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+@media (prefers-reduced-motion: reduce) { body[data-wall="admin"] .tile::after { transition: none; } }

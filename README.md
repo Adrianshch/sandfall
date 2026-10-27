@@ -1,3 +1,83 @@
+# Cat Emotions cubbies (v6)
+
+Each student gets their own cubby: a private cat-memory sand picture that only they can change. The class wall shows every cubby at once, live, with no names.
+
+| Link | Who opens it | What it does |
+|---|---|---|
+| `https://adrianshch.github.io/sandfall/sandfall/` | Each student's tablet | Pick **I'm new** or **I've been here before**, type a username, then make art in their cubby |
+| `https://adrianshch.github.io/sandfall/sandfall/display/` | Projector or TV | Every cubby at once, no names |
+| `https://adrianshch.github.io/sandfall/sandfall/admin-cappy/` | You | The wall again; tap a cubby to remove it |
+
+- **Usernames** are the only key to a cubby, so students should keep theirs to themselves. Capitals and extra spaces don't matter (`Maya Lee` = `maya lee`). A new student can't take a name that's already in use. A returning student who types a name that doesn't exist gets a new cubby with that name.
+- **Leaving a cubby:** refresh the page. It always goes back to the start.
+- **Deleting:** a student can delete their own cubby (button at the top right). You can remove any cubby from the admin link. Either way the art is gone for good and the username is free again.
+- **No names are stored.** The database keeps only a scrambled code made from each username, so nobody can read the usernames there, not even you.
+- Cubbies stay until deleted. **Start fresh** on the older pages doesn't touch them.
+
+## One-time setup: add the cubby rules to Firebase
+
+Do this once, or the cubby pages will say "Ask your teacher to check the setup".
+
+1. Open https://console.firebase.google.com, pick your project, then **Realtime Database → Rules**.
+2. Near the top, find the line `"rules": {`. Click at the very end of that line and press **Enter**.
+3. Paste the block below there. Don't change anything else, and leave your teacher code where it is.
+4. Click **Publish**. If Firebase shows a red error, the paste landed in the wrong spot: undo and try again.
+
+```json
+    "cubbies": {
+      ".read": true,
+      "$id": {
+        ".write": "(!data.exists() && $id.matches(/^[0-9a-f]{64}$/)) || !newData.exists()",
+        ".validate": "newData.hasChildren(['made'])",
+        "made": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    },
+    "drops": {
+      ".read": true,
+      "$id": {
+        ".indexOn": ["k"],
+        ".write": "!newData.exists()",
+        "$drop": {
+          ".write": "!data.exists() && root.child('cubbies/' + $id).exists()",
+          ".validate": "newData.hasChildren(['i', 'k', 'c', 'r', 's', 'l', 'p'])",
+          "i": { ".validate": "newData.val() === $drop && $drop.length <= 64" },
+          "k": { ".validate": "newData.isNumber()" },
+          "c": { ".validate": "newData.isNumber()" },
+          "r": { ".validate": "newData.isNumber()" },
+          "s": { ".validate": "newData.isNumber()" },
+          "l": { ".validate": "newData.isNumber()" },
+          "p": { ".validate": "newData.isString() && newData.val().length <= 16" },
+          "t": { ".validate": "newData.isString() && newData.val().length <= 120" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
+    "snaps": {
+      ".read": true,
+      "$id": {
+        ".write": "!newData.exists() || root.child('cubbies/' + $id).exists()",
+        ".validate": "newData.hasChildren(['v', 'k', 'i', 'n', 'b', 's'])",
+        "v": { ".validate": "newData.isNumber()" },
+        "k": { ".validate": "newData.isNumber()" },
+        "i": { ".validate": "newData.isString() && newData.val().length <= 64" },
+        "n": { ".validate": "newData.isNumber()" },
+        "b": { ".validate": "newData.isString() && newData.val().length <= 1000000" },
+        "s": { ".validate": "newData.isString() && newData.val().length <= 3000000" },
+        "$other": { ".validate": false }
+      }
+    },
+```
+
+## Good to know (v6)
+
+- The wall downloads every cubby when it opens. Each student's tablet also saves a compact picture of its cubby now and then, so the wall doesn't have to replay every tap since the start. A brand-new wall shows **Catching up…** in its status pill until all the cubbies are drawn.
+- The admin link works for anyone who knows it, and the repository is public, so treat it like a shared secret. The rules can't tell you apart from a student without sign-in, so a tech-savvy student could also delete cubbies straight from the database. Same trust as before: this is a classroom tool, not a vault.
+
+---
+
+The rest of this guide is the original Sandfall setup (the Firebase project and GitHub Pages), which v6 still uses. The original sand game itself (v2) has been replaced by the cubbies; it's saved as version `v2` in the repository.
+
 # Sandfall
 
 A shared classroom sand picture. Kids pour sand in feeling colors from tablets, and every screen, including the class display, shows the same picture as it builds. Nobody signs in.

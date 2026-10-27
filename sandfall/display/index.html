@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cat Emotions · Class wall</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="../wall.css?v=2026-10-27a">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="../../config.js"></script>
+<script src="../engine.js?v=2026-10-27a"></script>
+<script src="../cubbies.js?v=2026-10-27a"></script>
+</head>
+<body data-wall="display">
+
+<div class="app">
+  <header class="top">
+    <div class="mark">
+      <h1>Cat Emotions <span class="beta">class wall</span></h1>
+      <p>Everyone’s cubbies, live.</p>
+      <p class="notice" id="notice" hidden></p>
+    </div>
+    <div class="tools">
+      <span class="status" id="status"><span class="dot"></span><span id="statusText">Connecting…</span></span>
+      <button class="btn" id="fs" type="button">Full screen</button>
+      <span class="build" title="Version of this page">v6 · build 2026-10-27a</span>
+    </div>
+  </header>
+  <main class="wall" id="wall">
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty"><p id="emptyText"></p></div>
+  </main>
+</div>
+
+<script src="../wall.js?v=2026-10-27a"></script>
+</body>
+</html>
