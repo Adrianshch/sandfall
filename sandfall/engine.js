@@ -15,6 +15,11 @@
   const REPEAT_MS = 350;         // holding drops a marble this often
   const CHECKPOINT_EVERY = 10;
   const STEP_MS = 1000 / 60;
+  // Sand mode: a pour is one 100 ms stretch of a held finger (its path), so it reaches the
+  // screen at least that late already and waits only this much more.
+  const SAND_HORIZON = 100;
+  const SAND_BAND_MS = 6000;     // a held pour drifts through the cat's light-to-deep shades this often
+  const MAX_PATH = 80;           // numbers in one pour's path (40 points)
 
   // Cat pictures sit in images/ at the top of the site, next to this folder.
   const IMG = new URL('../images/', document.currentScript.src).href;
@@ -109,8 +114,11 @@
         for (let k = 0; k <= 8; k++) put(b, k, b.x, b.y, b.r * (1 + 0.18 * k / 8), 1 - k / 8);
         T = 3;
       },
-      sand(list) {                            // [sx, sy, fx, fy, colour, ...] in grid cells
+      // list: [sx, sy, fx, fy, colour, ...] in grid cells; delay (optional): frames each grain waits
+      // before it starts to fall (a sand pour lets out its grains in the order the finger moved)
+      sand(list, delay) {
         grains = list;
+        grains.delay = delay || null;
         sandStart = T;
         const land = [];
         let longest = 0;
@@ -118,7 +126,7 @@
           const fall = Math.max(0, list[k + 3] - list[k + 1]);
           const t = 4 + Math.round(Math.sqrt(fall * 8)) + (k / 5) % 6;   // a short scatter, then gravity
           land.push(t);
-          if (t > longest) longest = t;
+          if (t + (delay ? delay[k / 5] : 0) > longest) longest = t + (delay ? delay[k / 5] : 0);
         }
         grains.land = land;
         sandEnd = sandStart + longest;
@@ -175,11 +183,15 @@
     if (!Number.isInteger(col) || col < 0 || col >= MOODS.length) return null;
     if (!Number.isInteger(r) || r < 1 || r > 20) return null;
     if (!Number.isInteger(s) || s < 0 || s > 4294967295) return null;
-    if (l !== 0 && l !== 1) return null;
-    if (!Array.isArray(p) || p.length !== 2) return null;
-    const [x, y] = p;
-    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= GW || y < 0 || y >= GH) return null;
-    const out = { i, k, c: col, r, s, l, p: [x, y] };
+    // l: 0 drop a marble, 1 pop, 2 pour sand along a path, 3 the same but continuing a pour
+    // (its first point is where the previous stretch ended, and gets no sand of its own)
+    if (l !== 0 && l !== 1 && l !== 2 && l !== 3) return null;
+    if (!Array.isArray(p) || p.length % 2 || p.length < (l === 3 ? 4 : 2) || p.length > (l >= 2 ? MAX_PATH : 2)) return null;
+    for (let j = 0; j < p.length; j += 2) {
+      const x = p[j], y = p[j + 1];
+      if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= GW || y < 0 || y >= GH) return null;
+    }
+    const out = { i, k, c: col, r, s, l, p: p.slice() };
     if (l === 1 && typeof t === 'string' && t.length <= 120) out.t = t;
     return out;
   }
@@ -914,6 +926,45 @@
     }
 
     // Drops one marble and plays out everything it sets off. `tl` records the motion for animation.
+    // Sand mode: pours grains along the finger's path, like the first Sandfall (about r*r*0.7
+    // grains per step, steps one brush apart). The colour drifts slowly through the cat's light,
+    // middle and deep shades, so a long pour builds up bands. Marbles aren't moved.
+    function pourSand(ch, tl) {
+      const rand = rng32(ch.s);
+      const pal = sandPalette(hexRgb(MOODS[ch.c].hex));
+      const t = tri(ch.k / SAND_BAND_MS);
+      const r = ch.r, n = Math.max(2, Math.round(r * r * 0.7));
+      const grains = tl ? [] : null, delay = tl ? [] : null;
+      let frame = 0;                         // which frame of the stretch this spot was touched in
+      markMarbles();
+      const at = (cx, cy) => {
+        for (let j = 0; j < n; j++) {
+          const dx = (rand() * 2 - 1) * r, dy = (rand() * 2 - 1) * r, sp = rand();
+          if (dx * dx + dy * dy > r * r) continue;
+          const gx = Math.round(cx + dx), gy = Math.round(cy + dy);
+          if (!openCell(gx, gy)) continue;     // inside a marble or the pile: no sand there
+          const col = grainColour(pal, t, sp);
+          const idx = pourGrain(gx, gy, col, rand);
+          if (grains) { grains.push(gx, gy, idx % SW, (idx - idx % SW) / SW, col); delay.push(frame); }
+        }
+      };
+      const p = ch.p;
+      let px = null, py = null, j = 0;
+      if (ch.l === 3) { px = p[0]; py = p[1]; j = 2; }
+      for (; j < p.length; j += 2) {
+        const x = p[j], y = p[j + 1];
+        if (px === null) at(x, y);
+        else {
+          const dx = x - px, dy = y - py;
+          const steps = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy) / Math.max(1, r)));
+          for (let k = 1; k <= steps; k++) at(px + dx * k / steps, py + dy * k / steps);
+        }
+        px = x; py = y;
+        frame++;
+      }
+      if (tl) tl.sand(grains, delay);
+    }
+
     function place(ch, tl) {
       const rand = rng32(ch.s);
       const x = Math.min(GW - R, Math.max(R, ch.p[0]));
@@ -1018,8 +1069,7 @@
     let worldVersion = 0;           // bumps whenever marbles or sand change, so the drawing can be reused until then
     function commit(frameStart) {
       const now = logicalNow();
-      const limit = now - HORIZON;
-      while (committed < chunks.length && chunks[committed].k <= limit) {
+      while (committed < chunks.length && chunks[committed].k <= now - (chunks[committed].l >= 2 ? SAND_HORIZON : HORIZON)) {
         const ch = chunks[committed];
         const replay = everCommitted.has(ch.i);  // re-doing it after a late arrival: finish now so nothing flickers
         // new events wait for the next frame once this one has done 8 ms of work (even a big catch-up)
@@ -1028,7 +1078,7 @@
         worldVersion++;
         everCommitted.add(ch.i);
         const tl = fresh ? makeTimeline() : null;
-        if (ch.l === 1) pop(ch, tl); else place(ch, tl);
+        if (ch.l === 1) pop(ch, tl); else if (ch.l >= 2) pourSand(ch, tl); else place(ch, tl);
         if (tl) {
           const anim = tl.finish(new Set(balls.map(b => b.i)));
           anim.t0 = performance.now();
@@ -1070,7 +1120,7 @@
     function formingAt(x, y) {
       for (let j = committed; j < chunks.length; j++) {
         const ch = chunks[j];
-        if (ch.l === 1) continue;
+        if (ch.l !== 0) continue;
         const dx = x - ch.p[0], dy = y - Math.min(GH - R, Math.max(R, ch.p[1])), rr = R * 1.3 + 3;
         if (dx * dx + dy * dy <= rr * rr) return true;
       }
@@ -1116,12 +1166,13 @@
       sBuf.set(sand);
       for (const a of flying) {
         const f = Math.floor((now - a.t0) / STEP_MS) - a.sandStart;
-        const g = a.grains, land = g.land;
+        const g = a.grains, land = g.land, delay = g.delay;
         for (let k = 0, j = 0; k < g.length; k += 5, j++) {
-          if (f >= land[j]) continue;                 // landed: the grid already shows it
+          const fj = delay ? f - delay[j] : f;
+          if (fj >= land[j]) continue;                // landed: the grid already shows it
           sBuf[g[k + 3] * SW + g[k + 2]] = 0;         // not there yet
-          if (f < 0) continue;
-          const p = f / land[j];
+          if (fj < 0) continue;
+          const p = fj / land[j];
           const cx = Math.round(g[k] + (g[k + 2] - g[k]) * Math.min(1, p * 1.6));
           const cy = Math.round(g[k + 1] + (g[k + 3] - g[k + 1]) * p * p);
           if (cx >= 0 && cx < SW && cy >= 0 && cy < SH) sBuf[cy * SW + cx] = g[k + 4];
@@ -1213,7 +1264,7 @@
       const ln = logicalNow();
       for (let j = committed; j < chunks.length; j++) {
         const ch = chunks[j];
-        if (ch.l === 1) continue;                   // a pop waiting its turn
+        if (ch.l !== 0) continue;                   // a pop or a sand pour waiting its turn
         const t = Math.max(0, Math.min(1, (ln - ch.k) / HORIZON));
         drawMarble(ch.c, ch.p[0], Math.min(GH - R, Math.max(R, ch.p[1])), R * (0.35 + 0.65 * t), 0.25 + 0.6 * t);
       }

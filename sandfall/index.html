@@ -407,6 +407,57 @@
   .tools .btn { opacity: 0.7; }
   .tools .btn:hover, .tools .btn:focus-visible { opacity: 1; }
 
+  /* v7: Balls / Sand switch, and the cat that follows the pointer in sand mode */
+  .tool {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--ink) 7%, transparent);
+  }
+  .tool-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: var(--muted);
+    font: 700 0.9rem var(--font-display);
+    cursor: pointer;
+  }
+  .tool-btn[aria-pressed="true"] { background: var(--box); color: var(--ink); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14); }
+  .tool-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ico { width: 16px; height: 16px; flex: none; }
+  .ico.ball { border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff 0 14%, var(--accent) 62%); }
+  .ico.sand {
+    height: 9px;
+    margin-top: 7px;
+    border-radius: 9px 9px 2px 2px;
+    background: radial-gradient(circle, var(--accent) 1.3px, transparent 1.6px) 0 0 / 4px 4px, color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  .pen {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 2;
+    pointer-events: none;
+    border-radius: 50%;
+    translate: -50% -50%;
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.25));
+  }
+  .pen.pouring { animation: wiggle 0.3s ease-in-out infinite alternate; }
+  @keyframes wiggle { from { rotate: -9deg; } to { rotate: 9deg; } }
+  body[data-tool="sand"] #world { cursor: none; }
+  @media (max-width: 760px) {
+    .tool { flex-direction: row; width: 100%; }
+    .tool-btn { flex: 1; justify-content: center; }
+  }
+  @media (prefers-reduced-motion: reduce) { .pen.pouring { animation: none; } }
+
   .dialog-back { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(10, 14, 20, 0.45); }
   .dialog {
     width: min(420px, 100%);
@@ -430,10 +481,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../config.js"></script>
-<script src="engine.js?v=2026-10-27a"></script>
-<script src="cubbies.js?v=2026-10-27a"></script>
+<script src="engine.js?v=2026-10-27b"></script>
+<script src="cubbies.js?v=2026-10-27b"></script>
 </head>
-<body data-mode="play">
+<body data-mode="play" data-tool="balls">
 
 <!-- Start: new or returning, then the username. Refreshing the page always comes back here. -->
 <section class="start" id="start">
@@ -459,7 +510,7 @@
       </div>
     </form>
     <p class="msg" id="startMsg" role="status"></p>
-    <span class="build" title="Version of this page">v6 · build 2026-10-27a</span>
+    <span class="build" title="Version of this page">v7 · build 2026-10-27b</span>
   </div>
 </section>
 
@@ -467,7 +518,7 @@
   <header class="top">
     <div class="mark">
       <h1>Cat Emotions <span class="beta">my cubby</span></h1>
-      <p id="hint">Pick a cat memory, then tap to drop it. Tap a memory to pop it into sand.<span class="hint-wide"> Tap More for extra cats.</span></p>
+      <p id="hint"></p>
       <p class="notice" id="notice" hidden></p>
     </div>
     <div class="tools">
@@ -478,13 +529,18 @@
 
   <main class="box" id="box">
     <canvas id="world"></canvas>
+    <canvas class="pen" id="pen" width="96" height="96" hidden></canvas>
     <div class="empty" id="empty"><p id="emptyText">Opening your cubby…</p></div>
   </main>
 
   <div class="dock" id="dock">
+    <div class="tool" role="group" aria-label="What you make">
+      <button class="tool-btn" id="toolBalls" type="button" aria-pressed="true"><span class="ico ball" aria-hidden="true"></span>Balls</button>
+      <button class="tool-btn" id="toolSand" type="button" aria-pressed="false"><span class="ico sand" aria-hidden="true"></span>Sand</button>
+    </div>
     <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
     <span class="count" id="count">0 memories</span>
-    <span class="build" title="Version of this page">v6 · build 2026-10-27a</span>
+    <span class="build" title="Version of this page">v7 · build 2026-10-27b</span>
   </div>
 </div>
 
@@ -523,6 +579,7 @@
   let cubby = null;              // the open cubby's id (a hash of the username)
   let stopFollow = null, stopWatch = null, saver = null;
   let ready = false, canPour = false, deleting = false;
+  let tool = 'balls';            // 'balls': drop cat marbles (and pop them); 'sand': hold to pour the cat's sand
 
   // ---- start: new or returning ----
   let returning = false;
@@ -608,7 +665,7 @@
       ready = true;
       canPour = true;
       saver = C.makeSaver(db, id, world);
-      $('emptyText').textContent = 'Pick a feeling below, then tap anywhere in the box.';
+      $('emptyText').textContent = emptyHint();
     }, () => showNotice('Could not read your cubby. Check the database rules in the setup guide.'));
     // deleted here, on another screen or by the teacher: back to the start
     let seenIt = false;
@@ -652,6 +709,69 @@
     });
   });
 
+  // ---- Balls or Sand ----
+  const emptyHint = () => tool === 'sand'
+    ? 'Pick a feeling below, then hold anywhere in the box to pour its sand.'
+    : 'Pick a feeling below, then tap anywhere in the box.';
+  function setTool(t) {
+    endStrokes();
+    tool = t;
+    document.body.dataset.tool = t;
+    $('toolBalls').setAttribute('aria-pressed', t === 'balls' ? 'true' : 'false');
+    $('toolSand').setAttribute('aria-pressed', t === 'sand' ? 'true' : 'false');
+    $('hint').innerHTML = t === 'sand'
+      ? 'Pick a cat, then hold anywhere to pour its sand.<span class="hint-wide"> Switch to Balls to drop cat memories.</span>'
+      : 'Pick a cat memory, then tap to drop it. Tap a memory to pop it into sand.<span class="hint-wide"> Tap More for extra cats.</span>';
+    if (ready) $('emptyText').textContent = emptyHint();
+    hidePen();
+  }
+  $('toolBalls').addEventListener('click', () => setTool('balls'));
+  $('toolSand').addEventListener('click', () => setTool('sand'));
+
+  // ---- the cat that follows the pointer in sand mode ----
+  const pen = $('pen');
+  function drawPen() { drawMarbleOn(pen, mood); }
+  function movePen(e) {
+    if (tool !== 'sand') return;
+    const b = box.getBoundingClientRect();
+    pen.style.left = (e.clientX - b.left) + 'px';
+    pen.style.top = (e.clientY - b.top) + 'px';
+    pen.hidden = false;
+  }
+  function hidePen() { pen.hidden = true; pen.classList.remove('pouring'); }
+
+  // ---- sand mode: hold to pour, like the first Sandfall ----
+  // Every frame adds the finger's spot to the pour; every 100 ms the stretch so far is sent as one
+  // pour (l: 2, or l: 3 when it carries on from the last stretch's end point).
+  const POUR_MS = 100, BRUSH = 3;
+  const strokes = new Map();
+  function startPour(st, lead) {
+    st.i = session + ':' + (seq++);
+    st.k = CW.nextKey();
+    st.s = (Math.random() * 4294967296) >>> 0;
+    st.c = mood;
+    st.lead = lead; st.pts = [];
+    st.t0 = performance.now();
+  }
+  function closePour(st, cont) {
+    if (st.pts.length) {
+      const p = st.lead ? st.lead.concat(st.pts) : st.pts;
+      const ch = { i: st.i, k: st.k, c: st.c, r: BRUSH, s: st.s, l: st.lead ? 3 : 2, p };
+      world.addChunk(ch, false);
+      send(ch);
+    }
+    if (cont) {
+      const n = st.pts.length;
+      startPour(st, n ? [st.pts[n - 2], st.pts[n - 1]] : st.lead);
+    }
+  }
+  function pourFrame(now) {
+    for (const st of strokes.values()) {
+      st.pts.push(st.x, st.y);
+      if (now - st.t0 >= POUR_MS || st.pts.length >= 76) closePour(st, true);
+    }
+  }
+
   // ---- dropping (multi-touch, hold to repeat) ----
   const holds = new Map();
   function send(ch) {
@@ -694,6 +814,15 @@
     if (!canPour) return;
     e.preventDefault();
     const [x, y] = toWorld(e);
+    if (tool === 'sand') {
+      try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+      const st = { x, y };
+      startPour(st, null);
+      strokes.set(e.pointerId, st);
+      movePen(e);
+      pen.classList.add('pouring');
+      return;
+    }
     const now = performance.now();
     const hit = world.marbleOnScreen(x, y);
     if (hit) { if (!world.popping.has(hit.i) && canAct(now)) popAt(x, y, hit); return; }   // tapped a marble: pop it
@@ -703,13 +832,25 @@
     if (canAct(now)) dropAt(x, y);
   });
   canvas.addEventListener('pointermove', e => {
-    const h = holds.get(e.pointerId);
+    movePen(e);
+    const h = holds.get(e.pointerId) || strokes.get(e.pointerId);
     if (h) [h.x, h.y] = toWorld(e);
   });
-  const release = e => holds.delete(e.pointerId);
+  const release = e => {
+    holds.delete(e.pointerId);
+    const st = strokes.get(e.pointerId);
+    if (st) { closePour(st, false); strokes.delete(e.pointerId); }
+    if (!strokes.size) pen.classList.remove('pouring');
+    if (e.pointerType !== 'mouse') hidePen();   // a finger lifted: no cat left floating
+  };
   canvas.addEventListener('pointerup', release);
   canvas.addEventListener('pointercancel', release);
-  function endStrokes() { holds.clear(); }
+  canvas.addEventListener('pointerleave', () => { if (!strokes.size) hidePen(); });
+  function endStrokes() {
+    holds.clear();
+    for (const st of strokes.values()) closePour(st, false);
+    strokes.clear();
+  }
 
   // ---- picker: five main marbles, plus a More button that opens a side panel ----
   const moodButtons = [];
@@ -767,6 +908,7 @@
     moodButtons.forEach(btn => drawMarbleOn(btn.querySelector('canvas'), Number(btn.dataset.mood)));
     startOrbs.forEach(([c, i]) => drawMarbleOn(c, i));
     renderMore();
+    drawPen();
   }
   // The More button shows the chosen side-panel marble, so kids can see what they picked.
   function renderMore() {
@@ -783,6 +925,7 @@
     mood = i;
     moodButtons.forEach(b => b.setAttribute('aria-pressed', Number(b.dataset.mood) === i ? 'true' : 'false'));
     renderMore();
+    drawPen();
   }
 
   function openMore() {
@@ -811,6 +954,7 @@
   });
   CW.onImages(drawPicker);
   drawPicker();
+  setTool('balls');
 
   // ---- status ----
   function showNotice(text) {
@@ -830,6 +974,8 @@
     const r = box.getBoundingClientRect();
     const s = Math.max(0.1, Math.min(r.width / GW, r.height / GH));
     world.setSize(Math.floor(GW * s), Math.floor(GH * s));
+    const size = Math.round(R * 1.7 * s) + 'px';   // the sand-mode cat: a bit smaller than a marble
+    pen.style.width = pen.style.height = size;
   }
   new ResizeObserver(fit).observe(box);
 
@@ -840,6 +986,7 @@
       for (const h of holds.values()) {
         if (now - h.last >= CW.REPEAT_MS && canAct(now)) { h.last = now; dropAt(h.x, h.y); }
       }
+      pourFrame(now);
       world.commit(now);
       world.render(now);
       if (saver) saver();

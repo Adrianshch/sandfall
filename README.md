@@ -4,7 +4,7 @@ Each student gets their own cubby: a private cat-memory sand picture that only t
 
 | Link | Who opens it | What it does |
 |---|---|---|
-| `https://adrianshch.github.io/sandfall/sandfall/` | Each student's tablet | Pick **I'm new** or **I've been here before**, type a username, then make art in their cubby |
+| `https://adrianshch.github.io/sandfall/sandfall/` | Each student's tablet | Pick **I'm new** or **I've been here before**, type a username, then make art in their cubby. **Balls** drops cat memories (tap one to pop it into sand); **Sand** turns the cursor into the chosen cat and pours its sand while held |
 | `https://adrianshch.github.io/sandfall/sandfall/display/` | Projector or TV | Every cubby at once, no names |
 | `https://adrianshch.github.io/sandfall/sandfall/admin-cappy/` | You | The wall again; tap a cubby to remove it |
 
@@ -47,7 +47,7 @@ Do this once, or the cubby pages will say "Ask your teacher to check the setup".
           "r": { ".validate": "newData.isNumber()" },
           "s": { ".validate": "newData.isNumber()" },
           "l": { ".validate": "newData.isNumber()" },
-          "p": { ".validate": "newData.isString() && newData.val().length <= 16" },
+          "p": { ".validate": "newData.isString() && newData.val().length <= 400" },
           "t": { ".validate": "newData.isString() && newData.val().length <= 120" },
           "$other": { ".validate": false }
         }
