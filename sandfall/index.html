@@ -134,6 +134,7 @@
     border-radius: 14px;
     box-shadow: 0 0 0 1px var(--line), var(--shadow);
     touch-action: none;
+    -webkit-touch-callout: none;   /* a long press must not open the iPad's callout and cut the pour short */
   }
   body[data-mode="play"] canvas { cursor: pointer; }
   .empty {
@@ -481,8 +482,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../config.js"></script>
-<script src="engine.js?v=2026-10-27b"></script>
-<script src="cubbies.js?v=2026-10-27b"></script>
+<script src="engine.js?v=2026-10-28a"></script>
+<script src="cubbies.js?v=2026-10-28a"></script>
 </head>
 <body data-mode="play" data-tool="balls">
 
@@ -510,7 +511,7 @@
       </div>
     </form>
     <p class="msg" id="startMsg" role="status"></p>
-    <span class="build" title="Version of this page">v7 · build 2026-10-27b</span>
+    <span class="build" title="Version of this page">v7 · build 2026-10-28a</span>
   </div>
 </section>
 
@@ -540,7 +541,7 @@
     </div>
     <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
     <span class="count" id="count">0 memories</span>
-    <span class="build" title="Version of this page">v7 · build 2026-10-27b</span>
+    <span class="build" title="Version of this page">v7 · build 2026-10-28a</span>
   </div>
 </div>
 
@@ -774,10 +775,21 @@
 
   // ---- dropping (multi-touch, hold to repeat) ----
   const holds = new Map();
+  // The database turned a sand pour down: its rules still have the v6 limit for a pour's path.
+  // Sand stops, balls keep working.
+  let sandBlocked = false;
+  const SAND_RULES = 'Sand can\'t be saved yet. Teacher: in the Firebase rules, under "drops", change the "p" limit from 16 to 400.';
   function send(ch) {
     C.sendDrop(db, cubby, ch).catch(e => {
       if (deleting || !cubby) return;
       if (/permission/i.test((e && (e.code || e.message)) || '')) {
+        if (ch.l >= 2) {
+          sandBlocked = true;
+          endStrokes();
+          hidePen();
+          showNotice(SAND_RULES);
+          return;
+        }
         canPour = false;
         endStrokes();
         showNotice("This screen can't add memories right now. Check the database rules in the setup guide.");
@@ -815,6 +827,7 @@
     e.preventDefault();
     const [x, y] = toWorld(e);
     if (tool === 'sand') {
+      if (sandBlocked) { showNotice(SAND_RULES); return; }
       try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
       const st = { x, y };
       startPour(st, null);
