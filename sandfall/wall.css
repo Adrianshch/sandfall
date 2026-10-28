@@ -115,7 +115,9 @@ body {
 .grid { display: grid; justify-content: center; align-content: center; min-height: 100%; }
 .tile {
   position: relative;
-  display: block;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
   padding: 0;
   border: 0;
   border-radius: 12px;
@@ -123,12 +125,13 @@ body {
   color: inherit;
   font: inherit;
 }
-.tile canvas {
+.tile .art {
   display: block;
   background: var(--box);
   border-radius: 12px;
   box-shadow: 0 0 0 1px var(--line), var(--shadow);
 }
+.tile .mix { display: block; flex: none; }
 .empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; pointer-events: none; }
 .empty p {
   margin: 0;
@@ -147,7 +150,7 @@ body[data-wall="admin"] .tile::after {
   content: "Remove";
   position: absolute;
   top: 8px;
-  right: 8px;
+  left: 8px;
   font: 600 0.72rem var(--font-body);
   color: #fff;
   background: var(--warn);
@@ -157,7 +160,7 @@ body[data-wall="admin"] .tile::after {
   transition: opacity 0.15s ease;
 }
 body[data-wall="admin"] .tile:hover::after, body[data-wall="admin"] .tile:focus-visible::after { opacity: 1; }
-body[data-wall="admin"] .tile:hover canvas, body[data-wall="admin"] .tile:focus-visible canvas { box-shadow: 0 0 0 3px var(--warn), var(--shadow); }
+body[data-wall="admin"] .tile:hover .art, body[data-wall="admin"] .tile:focus-visible .art { box-shadow: 0 0 0 3px var(--warn), var(--shadow); }
 .tile:focus-visible { outline: none; }
 @media (hover: none) { body[data-wall="admin"] .tile::after { opacity: 0.85; } }
 

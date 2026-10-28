@@ -1040,6 +1040,10 @@
 
     // ---- ordered drop log ----
     let chunks = [], seen = new Set(), committed = 0, checkpoints = [];
+    // How often each cat was used: one per marble dropped, one per press of sand (a pour's first
+    // stretch). Pops don't count. Kept with checkpoints and saved pictures like the world itself.
+    const noUses = () => new Array(MOODS.length).fill(0);
+    let uses = noUses();
     let everCommitted = new Set();
     let anims = [], animsVersion = 0;   // [{t0, end, tracks, grains, sandStart}]; version bumps when the list changes
 
@@ -1060,6 +1064,7 @@
       while (checkpoints.length && checkpoints[checkpoints.length - 1].idx > idx) checkpoints.pop();
       const cp = checkpoints[checkpoints.length - 1], from = cp || base;
       balls = from ? copyBalls(from.balls) : [];
+      uses = from ? from.uses.slice() : noUses();
       if (from) { sand.set(from.sand); sandCount = from.sandCount; } else { sand.fill(0); sandCount = 0; }
       refreshSandTop();
       worldVersion++;
@@ -1079,6 +1084,7 @@
         everCommitted.add(ch.i);
         const tl = fresh ? makeTimeline() : null;
         if (ch.l === 1) pop(ch, tl); else if (ch.l >= 2) pourSand(ch, tl); else place(ch, tl);
+        if (ch.l === 0 || ch.l === 2) uses[ch.c]++;
         if (tl) {
           const anim = tl.finish(new Set(balls.map(b => b.i)));
           anim.t0 = performance.now();
@@ -1087,7 +1093,7 @@
         }
         committed++;
         if (committed % CHECKPOINT_EVERY === 0) {
-          checkpoints.push({ idx: committed, balls: copyBalls(balls), sand: sand.slice(), sandCount });
+          checkpoints.push({ idx: committed, balls: copyBalls(balls), sand: sand.slice(), sandCount, uses: uses.slice() });
           if (checkpoints.length > keepCheckpoints) checkpoints.shift();
         }
       }
@@ -1097,6 +1103,7 @@
       everCommitted = new Set(); balls = []; anims = [];
       sand.fill(0); sandCount = 0; sandTop.fill(SH); patch.fill(0);
       base = null;
+      uses = noUses();
       worldVersion++;
     }
     // Starts over from a saved picture (see `base`).
@@ -1111,7 +1118,7 @@
       for (let j = checkpoints.length - 1; j >= 0; j--) {
         const cp = checkpoints[j], last = chunks[cp.idx - 1];
         if (!last || last.k >= before) continue;
-        return { balls: cp.balls, sand: cp.sand, sandCount: cp.sandCount, upto: { k: last.k, i: last.i }, count: (base ? base.count : 0) + cp.idx };
+        return { balls: cp.balls, sand: cp.sand, sandCount: cp.sandCount, uses: cp.uses, upto: { k: last.k, i: last.i }, count: (base ? base.count : 0) + cp.idx };
       }
       return null;
     }
@@ -1283,14 +1290,16 @@
       snapshot: () => ({ balls: copyBalls(balls), sand: sand.slice(), committed, total: chunks.length }),
       // how many drops the picture holds, counting those in the saved picture it started from
       dropCount: () => (base ? base.count : 0) + committed,
+      // uses per cat so far (index = MOODS index); read it, don't change it
+      uses: () => uses,
     };
   }
 
   // ---- saved pictures, packed for the database ----
-  // {v, k, i, n, b, s}: the last drop it holds (k, i), how many drops it holds (n), the marbles as
-  // JSON (b) and the sand grid deflated and in base64 (s). Browsers without CompressionStream
+  // {v, k, i, n, b, s}: the last drop it holds (k, i), how many drops it holds (n), the marbles and
+  // the uses per cat as JSON (b) and the sand grid deflated and in base64 (s). Browsers without CompressionStream
   // neither save nor read them; they just replay every drop.
-  const SNAP_V = 1;
+  const SNAP_V = 2;                // 2: b holds {m: marbles, u: uses per cat}; 1 (v6): b is the marbles only
   const canPack = typeof CompressionStream === 'function' && typeof DecompressionStream === 'function';
   async function squeeze(bytes, stream) {
     const out = await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer();
@@ -1300,11 +1309,13 @@
     const z = await squeeze(new Uint8Array(st.sand.buffer, st.sand.byteOffset, st.sand.byteLength), new CompressionStream('deflate'));
     let bin = '';
     for (let j = 0; j < z.length; j += 0x8000) bin += String.fromCharCode.apply(null, z.subarray(j, j + 0x8000));
-    return { v: SNAP_V, k: st.upto.k, i: st.upto.i, n: st.count, b: JSON.stringify(st.balls), s: btoa(bin) };
+    return { v: SNAP_V, k: st.upto.k, i: st.upto.i, n: st.count, b: JSON.stringify({ m: st.balls, u: st.uses }), s: btoa(bin) };
   }
   async function unpackState(o) {
-    if (!o || o.v !== SNAP_V || !Number.isFinite(o.k) || typeof o.i !== 'string' || !Number.isInteger(o.n) || typeof o.b !== 'string' || typeof o.s !== 'string') return null;
-    const balls = JSON.parse(o.b);
+    if (!o || (o.v !== 1 && o.v !== 2) || !Number.isFinite(o.k) || typeof o.i !== 'string' || !Number.isInteger(o.n) || typeof o.b !== 'string' || typeof o.s !== 'string') return null;
+    const b = JSON.parse(o.b);
+    const balls = o.v === 1 ? b : b && b.m;
+    let uses = o.v === 2 && b && Array.isArray(b.u) ? b.u : null;
     if (!Array.isArray(balls) || balls.length > 5000) return null;
     for (const b of balls) {
       if (!b || ![b.x, b.y, b.r, b.n].every(Number.isFinite) || !Number.isInteger(b.c) || b.c < 0 || b.c >= MOODS.length || typeof b.i !== 'string') return null;
@@ -1316,7 +1327,12 @@
     const sand = new Uint32Array(raw.buffer, raw.byteOffset, GW * GH).slice();
     let sandCount = 0;
     for (let j = 0; j < sand.length; j++) if (sand[j]) sandCount++;
-    return { balls, sand, sandCount, upto: { k: o.k, i: o.i }, count: o.n };
+    if (!uses || uses.length > MOODS.length || !uses.every(n => Number.isInteger(n) && n >= 0)) {
+      uses = new Array(MOODS.length).fill(0);        // older picture: count the memories it holds
+      for (const m of balls) uses[m.c] += m.n;
+    }
+    while (uses.length < MOODS.length) uses.push(0);
+    return { balls, sand, sandCount, uses, upto: { k: o.k, i: o.i }, count: o.n };
   }
 
   window.CatWorld = {
