@@ -110,9 +110,34 @@ body {
 .btn.danger { background: var(--warn); color: #fff; border-color: var(--warn); }
 .build { font-size: 0.62rem; color: var(--muted); opacity: 0.7; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-/* The wall: every cubby as a tile, sized by wall.js so they all fit on screen. */
-.wall { position: relative; flex: 1; min-height: 0; overflow: auto; }
-.grid { display: grid; justify-content: center; align-content: center; min-height: 100%; }
+/* The wall: the colab picture (bigger) beside every student cubby, sized by wall.js so they all fit
+   on screen, and the whole class's cat bar in its own column on the right. */
+.wall { flex: 1; min-height: 0; display: flex; gap: 20px; }
+.stage { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: auto; }
+.stage-row { display: flex; align-items: center; justify-content: center; min-height: 100%; }
+.colab { flex: none; display: flex; flex-direction: column; gap: 6px; }
+.cap {
+  margin: 0;
+  font: 600 0.72rem var(--font-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.grid { display: grid; flex: none; }
+.empty-note {
+  margin: 0;
+  max-width: 26ch;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1rem, 2vw, 1.4rem);
+  line-height: 1.3;
+  color: var(--muted);
+  text-wrap: balance;
+}
+.class-mix { flex: none; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.class-box { flex: 1; min-height: 0; }
+.class-box canvas { display: block; }
 .tile {
   position: relative;
   display: flex;
@@ -131,23 +156,11 @@ body {
   border-radius: 12px;
   box-shadow: 0 0 0 1px var(--line), var(--shadow);
 }
-.tile .mix { display: block; flex: none; }
-.empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; pointer-events: none; }
-.empty p {
-  margin: 0;
-  max-width: 32ch;
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: clamp(1rem, 2.4vw, 1.6rem);
-  line-height: 1.3;
-  color: var(--muted);
-  text-wrap: balance;
-}
 
 /* Admin: tap a tile to remove that cubby. */
 body[data-wall="admin"] .tile { cursor: pointer; }
 body[data-wall="admin"] .tile::after {
-  content: "Remove";
+  content: attr(data-act);
   position: absolute;
   top: 8px;
   left: 8px;

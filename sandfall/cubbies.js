@@ -3,6 +3,9 @@
 //   drops/<id>/<drop>  the cubby's drops and pops, the same records as v5
 //   snaps/<id>         a saved picture of the cubby, so screens don't replay every drop
 // <id> is a one-way hash of the username, so the database never holds anyone's name.
+// The class colab cubby is one more cubby with a fixed id (COLAB_ID) that anyone can open and
+// anyone can clear. Clearing deletes it and makes it again; its `made` time marks the new start,
+// and drops or saved pictures from before that are ignored.
 (() => {
   const CW = window.CatWorld;
   const cfg = window.SANDFALL_CONFIG || {};
@@ -31,9 +34,12 @@
     return Array.from(hash, b => b.toString(16).padStart(2, '0')).join('');
   }
 
+  const COLAB_ID = '290bb29d9f3d59d35dd535acc65f7e1bd489f9d5c9954d35edab2a9987123caa';   // SHA-256 of 'sandfall-colab'
+
   // Fills `world` with cubby `id` and keeps it up to date: the saved picture first (read once),
-  // then every drop after it. onReady runs once the drops so far are in.
-  function follow(db, id, world, onReady, onError) {
+  // then every drop after it. onReady runs once the drops so far are in. `since` (the colab's
+  // start time): drops and saved pictures from before it are left out.
+  function follow(db, id, world, onReady, onError, since) {
     let stopped = false, q = null;
     (async () => {
       let fromK = null;
@@ -41,17 +47,18 @@
         try {
           const v = (await db.ref('snaps/' + id).once('value')).val();
           const st = v ? await CW.unpackState(v) : null;
-          if (st && !stopped) { world.startFrom(st); fromK = st.upto.k; }
+          if (st && !stopped && !(since && st.upto.k < since)) { world.startFrom(st); fromK = st.upto.k; }
         } catch (_) { /* unreadable picture: replay every drop instead */ }
       }
       if (stopped) return;
-      q = fromK === null ? db.ref('drops/' + id) : db.ref('drops/' + id).orderByChild('k').startAt(fromK);
+      const from = Math.max(fromK === null ? -Infinity : fromK, since || -Infinity);
+      q = from === -Infinity ? db.ref('drops/' + id) : db.ref('drops/' + id).orderByChild('k').startAt(from);
       q.on('child_added', snap => {
         const raw = snap.val();
         if (!raw || typeof raw.p !== 'string') return;
         raw.p = raw.p.split(',').map(Number);
         const ch = CW.valid(raw);
-        if (ch) world.addChunk(ch, true);
+        if (ch && !(since && ch.k < since)) world.addChunk(ch, true);
       }, e => onError && onError(e));
       q.once('value', () => { if (!stopped && onReady) onReady(); }, () => {});
     })();
@@ -86,5 +93,31 @@
     return db.ref().update({ ['cubbies/' + id]: null, ['drops/' + id]: null, ['snaps/' + id]: null });
   }
 
-  window.Cubbies = { connect, tidyName, cubbyId, follow, sendDrop, makeSaver, removeCubby };
+  // ---- the class colab cubby ----
+  // Calls onStart(made) with the current colab's start time, or null while it is being cleared.
+  // If it is missing for a moment (never made yet, or someone's clear was cut off), this screen
+  // makes it; the rules let only one screen win.
+  function watchColab(db, onStart, canMake) {
+    const ref = db.ref('cubbies/' + COLAB_ID);
+    let timer = 0, last;
+    const cb = s => {
+      const v = s.val(), made = v && Number(v.made) || null, first = last === undefined;
+      clearTimeout(timer);
+      if (made !== last) { last = made; onStart(made); }
+      // missing when this screen first looks: make it now; gone later: give the clearing screen a moment
+      if (!made && canMake) timer = setTimeout(() => makeColab(db), first ? 0 : 1500);
+    };
+    ref.on('value', cb, () => {});
+    return () => { clearTimeout(timer); ref.off('value', cb); };
+  }
+  function makeColab(db) {
+    return db.ref('cubbies/' + COLAB_ID).set({ made: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+  }
+  // Start fresh: everyone's picture clears and a new colab begins.
+  async function clearColab(db) {
+    await removeCubby(db, COLAB_ID);
+    await makeColab(db);
+  }
+
+  window.Cubbies = { connect, tidyName, cubbyId, follow, sendDrop, makeSaver, removeCubby, COLAB_ID, watchColab, clearColab };
 })();

@@ -7,12 +7,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../wall.css?v=2026-10-28b">
+<link rel="stylesheet" href="../wall.css?v=2026-10-28c">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../../config.js"></script>
-<script src="../engine.js?v=2026-10-28b"></script>
-<script src="../cubbies.js?v=2026-10-28b"></script>
+<script src="../engine.js?v=2026-10-28c"></script>
+<script src="../cubbies.js?v=2026-10-28c"></script>
 </head>
 <body data-wall="display">
 
@@ -20,21 +20,33 @@
   <header class="top">
     <div class="mark">
       <h1>Cat Emotions <span class="beta">class wall</span></h1>
-      <p>Everyone’s cubbies, live.</p>
+      <p>The class colab and everyone’s cubbies, live.</p>
       <p class="notice" id="notice" hidden></p>
     </div>
     <div class="tools">
       <span class="status" id="status"><span class="dot"></span><span id="statusText">Connecting…</span></span>
       <button class="btn" id="fs" type="button">Full screen</button>
-      <span class="build" title="Version of this page">v7 · build 2026-10-28b</span>
+      <span class="build" title="Version of this page">v7 · build 2026-10-28c</span>
     </div>
   </header>
   <main class="wall" id="wall">
-    <div class="grid" id="grid"></div>
-    <div class="empty" id="empty"><p id="emptyText"></p></div>
+    <div class="stage" id="stage">
+      <div class="stage-row" id="stageRow">
+        <section class="colab" aria-label="Class colab">
+          <p class="cap" id="colabCap">Class colab</p>
+          <div id="colabTile"></div>
+        </section>
+        <div class="grid" id="grid" aria-label="Student cubbies"></div>
+        <p class="empty-note" id="empty" hidden></p>
+      </div>
+    </div>
+    <aside class="class-mix" id="classMixBox" aria-label="Cats the whole class has used">
+      <p class="cap">Whole class</p>
+      <div class="class-box" id="classBox"><canvas id="classMix" aria-hidden="true"></canvas></div>
+    </aside>
   </main>
 </div>
 
-<script src="../wall.js?v=2026-10-28b"></script>
+<script src="../wall.js?v=2026-10-28c"></script>
 </body>
 </html>

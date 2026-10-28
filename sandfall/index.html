@@ -482,23 +482,32 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../config.js"></script>
-<script src="engine.js?v=2026-10-28b"></script>
-<script src="cubbies.js?v=2026-10-28b"></script>
+<script src="engine.js?v=2026-10-28c"></script>
+<script src="cubbies.js?v=2026-10-28c"></script>
 </head>
 <body data-mode="play" data-tool="balls">
 
-<!-- Start: new or returning, then the username. Refreshing the page always comes back here. -->
+<!-- Start: own cubby or the class colab; for an own cubby, new or returning, then the username.
+     Refreshing the page always comes back here. -->
 <section class="start" id="start">
   <div class="card">
     <div class="orbs" id="startOrbs" aria-hidden="true"></div>
     <h1>Cat Emotions</h1>
-    <p class="lede">Your own cubby to make sand art from your feelings.</p>
-    <div id="choose">
+    <p class="lede">Make sand art from your feelings, in your own cubby or together with your class.</p>
+    <div id="pickMode">
+      <p class="q">How do you want to play?</p>
+      <div class="choices" style="margin-top: 12px">
+        <button class="choice" id="soloMode" type="button">My own cubby<span>Only you can change it</span></button>
+        <button class="choice" id="colabMode" type="button">Class colab<span>Everyone makes one picture together</span></button>
+      </div>
+    </div>
+    <div id="choose" hidden>
       <p class="q">Have you made a cubby before?</p>
       <div class="choices" style="margin-top: 12px">
         <button class="choice" id="newUser" type="button">I'm new<span>Make up a username</span></button>
         <button class="choice" id="oldUser" type="button">I've been here before<span>Type your username</span></button>
       </div>
+      <div class="row" style="margin-top: 12px"><button class="btn big" id="backToModes" type="button">Back</button></div>
     </div>
     <form id="nameForm" hidden novalidate>
       <label for="name" id="nameLabel">Make up a username</label>
@@ -511,20 +520,21 @@
       </div>
     </form>
     <p class="msg" id="startMsg" role="status"></p>
-    <span class="build" title="Version of this page">v7 · build 2026-10-28b</span>
+    <span class="build" title="Version of this page">v7 · build 2026-10-28c</span>
   </div>
 </section>
 
 <div class="app" id="app" hidden>
   <header class="top">
     <div class="mark">
-      <h1>Cat Emotions <span class="beta">my cubby</span></h1>
+      <h1>Cat Emotions <span class="beta" id="badge">my cubby</span></h1>
       <p id="hint"></p>
       <p class="notice" id="notice" hidden></p>
     </div>
     <div class="tools">
       <span class="status" id="status"><span class="dot"></span><span id="statusText">Connecting…</span></span>
       <button class="btn" id="delete" type="button">Delete my cubby</button>
+      <button class="btn" id="fresh" type="button" hidden>Start fresh</button>
     </div>
   </header>
 
@@ -541,7 +551,7 @@
     </div>
     <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
     <span class="count" id="count">0 memories</span>
-    <span class="build" title="Version of this page">v7 · build 2026-10-28b</span>
+    <span class="build" title="Version of this page">v7 · build 2026-10-28c</span>
   </div>
 </div>
 
@@ -580,13 +590,21 @@
   let cubby = null;              // the open cubby's id (a hash of the username)
   let stopFollow = null, stopWatch = null, saver = null;
   let ready = false, canPour = false, deleting = false;
+  let colab = false, colabStart = null;   // in the class colab cubby, and when its current picture began
   let tool = 'balls';            // 'balls': drop cat marbles (and pop them); 'sand': hold to pour the cat's sand
 
   // ---- start: new or returning ----
   let returning = false;
+  function showModes() {
+    $('pickMode').hidden = false;
+    $('choose').hidden = true;
+    $('nameForm').hidden = true;
+  }
   function showChoice() {
+    $('pickMode').hidden = true;
     $('choose').hidden = false;
     $('nameForm').hidden = true;
+    $('startMsg').textContent = '';
   }
   function showNameForm(isReturning) {
     returning = isReturning;
@@ -604,6 +622,12 @@
   $('newUser').addEventListener('click', () => showNameForm(false));
   $('oldUser').addEventListener('click', () => showNameForm(true));
   $('back').addEventListener('click', showChoice);
+  $('backToModes').addEventListener('click', showModes);
+  $('soloMode').addEventListener('click', showChoice);
+  $('colabMode').addEventListener('click', () => {
+    if (!db) { $('startMsg').className = 'msg'; $('startMsg').textContent = $('startMsg').textContent || 'Can\'t reach the cubbies right now.'; return; }
+    openColab();
+  });
 
   let checking = false;
   $('nameForm').addEventListener('submit', async e => {
@@ -653,12 +677,19 @@
 
   // ---- inside a cubby ----
   // There's no way back to the start except refreshing the page.
-  function openCubby(id, note) {
-    cubby = id;
-    ready = false; canPour = false; deleting = false;
-    world.resetLog();
+  function showApp() {
     $('start').hidden = true;
     $('app').hidden = false;
+    $('badge').textContent = colab ? 'class colab' : 'my cubby';
+    $('delete').hidden = colab;
+    $('fresh').hidden = !colab;
+  }
+  function openCubby(id, note) {
+    cubby = id;
+    colab = false;
+    ready = false; canPour = false; deleting = false;
+    world.resetLog();
+    showApp();
     showNotice(note || '');
     $('emptyText').textContent = 'Opening your cubby…';
     fit();
@@ -690,17 +721,67 @@
     world.resetLog();
     $('app').hidden = true;
     $('start').hidden = false;
-    showChoice();
+    showModes();
     $('startMsg').className = 'msg ok';
     $('startMsg').textContent = message;
   }
 
+  // ---- the class colab cubby: everyone in one picture, live ----
+  // Each time someone starts fresh, every screen clears and follows the new picture from its start.
+  function openColab() {
+    cubby = C.COLAB_ID;
+    colab = true;
+    showApp();
+    showNotice('');
+    fit();
+    stopWatch = C.watchColab(db, startColabPicture, true);
+    setPresence();
+    renderStatus();
+  }
+  function startColabPicture(made) {
+    if (stopFollow) stopFollow();
+    stopFollow = saver = null;
+    endStrokes();
+    world.resetLog();
+    world.popping.clear();
+    ready = false; canPour = false;
+    colabStart = made;
+    $('emptyText').textContent = made ? 'Opening the class colab…' : 'Starting fresh…';
+    if (!made) return;
+    stopFollow = C.follow(db, C.COLAB_ID, world, () => {
+      ready = true;
+      canPour = true;
+      saver = C.makeSaver(db, C.COLAB_ID, world);
+      $('emptyText').textContent = emptyHint();
+    }, () => showNotice('Could not read the class colab. Check the database rules in the setup guide.'), made);
+  }
+  // Who's in the colab right now (the status pill counts them).
+  let here = 0;
+  function setPresence() {
+    if (!db || !connected || !colab) return;
+    const me = db.ref('screens/' + session);
+    me.onDisconnect().remove();
+    me.set({ mode: 'colab' }).catch(() => {});
+  }
+
   // ---- delete my cubby ----
-  $('delete').addEventListener('click', () => { $('confirm').hidden = false; $('keep').focus(); });
+  function ask(title, text, yes) {
+    $('confirmTitle').textContent = title;
+    $('confirmText').textContent = text;
+    $('reallyDelete').textContent = yes;
+    $('confirm').hidden = false;
+    $('keep').focus();
+  }
+  $('delete').addEventListener('click', () => ask('Delete your cubby?', 'Your sand art will be gone for good, and your username will stop working.', 'Delete it'));
+  $('fresh').addEventListener('click', () => ask('Start fresh for everyone?', 'The class colab picture clears on every screen, and everyone starts a new one together.', 'Start fresh'));
   $('keep').addEventListener('click', () => { $('confirm').hidden = true; });
   $('reallyDelete').addEventListener('click', () => {
     $('confirm').hidden = true;
     if (!cubby) return;
+    if (colab) {
+      C.clearColab(db).catch(() => showNotice('Could not start fresh. Check the database rules in the setup guide.'));
+      return;
+    }
     deleting = true;
     canPour = false;
     C.removeCubby(db, cubby).catch(() => {
@@ -780,21 +861,29 @@
   let sandBlocked = false;
   const SAND_RULES = 'Sand can\'t be saved yet. Teacher: in the Firebase rules, under "drops", change the "p" limit from 16 to 400.';
   function send(ch) {
+    const sentIn = colabStart;
     C.sendDrop(db, cubby, ch).catch(e => {
       if (deleting || !cubby) return;
-      if (/permission/i.test((e && (e.code || e.message)) || '')) {
-        if (ch.l >= 2) {
-          sandBlocked = true;
-          endStrokes();
-          hidePen();
-          showNotice(SAND_RULES);
-          return;
-        }
-        canPour = false;
-        endStrokes();
-        showNotice("This screen can't add memories right now. Check the database rules in the setup guide.");
+      if (colab) {
+        // refused because someone started fresh at that moment: nothing to worry about
+        setTimeout(() => { if (colab && colabStart === sentIn) refused(ch, e); }, 1500);
+        return;
       }
+      refused(ch, e);
     });
+  }
+  function refused(ch, e) {
+    if (!/permission/i.test((e && (e.code || e.message)) || '')) return;
+    if (ch.l >= 2) {
+      sandBlocked = true;
+      endStrokes();
+      hidePen();
+      showNotice(SAND_RULES);
+      return;
+    }
+    canPour = false;
+    endStrokes();
+    showNotice("This screen can't add memories right now. Check the database rules in the setup guide.");
   }
   function dropAt(x, y) {
     const ch = { i: session + ':' + (seq++), k: CW.nextKey(), c: mood, r: R, s: (Math.random() * 4294967296) >>> 0, l: 0, p: [x, y] };
@@ -978,7 +1067,8 @@
   function renderStatus() {
     const el = $('status'), txt = $('statusText');
     el.classList.toggle('live', !!db && connected);
-    txt.textContent = !db ? 'Not saving' : connected ? 'Saved' : 'Offline · saves when back';
+    txt.textContent = !db ? 'Not saving' : !connected ? 'Offline · saves when back'
+      : colab ? 'Live · ' + Math.max(1, here) + (Math.max(1, here) === 1 ? ' person' : ' people') : 'Saved';
   }
 
   // ---- layout + render ----
@@ -1021,7 +1111,12 @@
   if (!db) {
     $('startMsg').textContent = link.problem;
   } else {
-    db.ref('.info/connected').on('value', s => { connected = !!s.val(); renderStatus(); });
+    db.ref('.info/connected').on('value', s => { connected = !!s.val(); setPresence(); renderStatus(); });
+    db.ref('screens').on('value', s => {
+      const v = s.val();
+      here = v && typeof v === 'object' ? Object.values(v).filter(x => x && x.mode === 'colab').length : 0;
+      if (colab) renderStatus();
+    }, () => {});
   }
   requestAnimationFrame(tick);
 })();

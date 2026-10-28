@@ -1,12 +1,12 @@
 # Cat Emotions cubbies (v6)
 
-Each student gets their own cubby: a private cat-memory sand picture that only they can change. The class wall shows every cubby at once, live, with no names.
+Each student can make their own cubby, a private cat-memory sand picture that only they can change, or join the **class colab**, one picture the whole class makes together. The class wall shows the colab and every cubby at once, live, with no names.
 
 | Link | Who opens it | What it does |
 |---|---|---|
-| `https://adrianshch.github.io/sandfall/sandfall/` | Each student's tablet | Pick **I'm new** or **I've been here before**, type a username, then make art in their cubby. **Balls** drops cat memories (tap one to pop it into sand); **Sand** turns the cursor into the chosen cat and pours its sand while held |
-| `https://adrianshch.github.io/sandfall/sandfall/display/` | Projector or TV | Every cubby at once, no names. Beside each one, a bar shows which cats that student has used: each colour's share of the bar (bottom to top, 0 to 100%) is how often they picked that cat, with a little cat flag to label it |
-| `https://adrianshch.github.io/sandfall/sandfall/admin-cappy/` | You | The wall again; tap a cubby to remove it |
+| `https://adrianshch.github.io/sandfall/sandfall/` | Each student's tablet | Pick **My own cubby** (then **I'm new** or **I've been here before** and a username) or **Class colab** (no username; everyone in it plays in the same picture, and anyone can **Start fresh**). **Balls** drops cat memories (tap one to pop it into sand); **Sand** turns the cursor into the chosen cat and pours its sand while held |
+| `https://adrianshch.github.io/sandfall/sandfall/display/` | Projector or TV | The class colab (a bit bigger) beside every cubby, no names. On the right, one bar for the whole class: each colour's share of the bar (bottom to top, 0 to 100%) is how often the class picked that cat, with a little cat flag to label it |
+| `https://adrianshch.github.io/sandfall/sandfall/admin-cappy/` | You | The wall again; tap a cubby to remove it, or the colab to start it fresh |
 
 - **Usernames** are the only key to a cubby, so students should keep theirs to themselves. Capitals and extra spaces don't matter (`Maya Lee` = `maya lee`). A new student can't take a name that's already in use. A returning student who types a name that doesn't exist gets a new cubby with that name.
 - **Leaving a cubby:** refresh the page. It always goes back to the start.
