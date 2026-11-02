@@ -374,6 +374,7 @@
     font: 700 1.1rem var(--font-display);
     cursor: pointer;
   }
+  .choice b { font: inherit; }
   .choice span { font: 400 0.85rem var(--font-body); color: var(--muted); }
   .choice.short { min-height: 64px; justify-content: center; }
   .choice:hover { border-color: var(--muted); }
@@ -486,8 +487,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../config.js"></script>
-<script src="engine.js?v=2026-11-02e"></script>
-<script src="cubbies.js?v=2026-11-02e"></script>
+<script src="engine.js?v=2026-11-02f"></script>
+<script src="cubbies.js?v=2026-11-02f"></script>
 </head>
 <body data-mode="play" data-tool="balls">
 
@@ -499,29 +500,29 @@
     <div id="pickMode">
       <p class="q">How do you want to play?</p>
       <div class="choices" style="margin-top: 12px">
-        <button class="choice short" id="soloMode" type="button">My own cubby</button>
-        <button class="choice short" id="colabMode" type="button">Class colab</button>
+        <button class="choice short" id="soloMode" type="button">My own cubby 👤</button>
+        <button class="choice short" id="colabMode" type="button">Class colab 👥</button>
       </div>
     </div>
     <div id="choose" hidden>
       <div class="choices">
-        <button class="choice" id="newUser" type="button">I'm new<span>Create a new username</span></button>
-        <button class="choice" id="oldUser" type="button">I've been here before<span>Enter your username</span></button>
+        <button class="choice" id="newUser" type="button"><b>I'm new 🌱</b><span>Create a new username</span></button>
+        <button class="choice" id="oldUser" type="button"><b>I've been here before 🌿</b><span>Enter your username</span></button>
       </div>
-      <div class="row" style="margin-top: 12px"><button class="btn big" id="backToModes" type="button">Back</button></div>
+      <div class="row" style="margin-top: 12px"><button class="btn big" id="backToModes" type="button">Back <span class="emoji" aria-hidden="true">◀️</span></button></div>
     </div>
     <form id="nameForm" hidden novalidate>
-      <label for="name" id="nameLabel">Create a new username</label>
+      <label for="name" id="nameLabel">Create a new username 🔐</label>
       <p class="help" id="nameHelp"></p>
       <input class="field" id="name" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="go">
       <p class="msg" id="nameMsg" role="alert"></p>
       <div class="row">
-        <button class="btn big" id="back" type="button">Back</button>
-        <button class="btn primary" id="go" type="submit">Open my cubby</button>
+        <button class="btn big" id="back" type="button">Back <span class="emoji" aria-hidden="true">◀️</span></button>
+        <button class="btn primary" id="go" type="submit">Open my cubby ▶️</button>
       </div>
     </form>
     <p class="msg" id="startMsg" role="status"></p>
-    <span class="build" title="Version of this page">v7 · build 2026-11-02e</span>
+    <span class="build" title="Version of this page">v7 · build 2026-11-02f</span>
   </div>
 </section>
 
@@ -529,7 +530,7 @@
   <header class="top">
     <div class="mark">
       <div class="title-row">
-        <button class="btn" id="leave" type="button">← Back</button>
+        <button class="btn" id="leave" type="button">Back <span class="emoji" aria-hidden="true">◀️</span></button>
         <h1>Sand Emotions <span class="beta" id="badge">My cubby</span></h1>
       </div>
       <p id="hint">How are you feeling?</p>
@@ -538,8 +539,8 @@
     <div class="tools">
       <span class="status" id="status"><span class="dot"></span><span id="statusText">Connecting…</span></span>
       <div class="actions">
-        <button class="btn" id="delete" type="button"><span aria-hidden="true">🗑️</span> Delete my cubby</button>
-        <button class="btn" id="refresh" type="button"><span aria-hidden="true">🔄</span> Refresh</button>
+        <button class="btn" id="delete" type="button">Delete my cubby <span class="emoji" aria-hidden="true">🗑️</span></button>
+        <button class="btn" id="refresh" type="button">Refresh <span class="emoji" aria-hidden="true">🔄</span></button>
       </div>
     </div>
   </header>
@@ -552,8 +553,8 @@
 
   <div class="dock" id="dock">
     <div class="tool" role="group" aria-label="What you make">
-      <button class="tool-btn" id="toolBalls" type="button" aria-pressed="true"><span class="ico ball" aria-hidden="true"></span>Balls</button>
-      <button class="tool-btn" id="toolSand" type="button" aria-pressed="false"><span class="ico sand" aria-hidden="true"></span>Sand</button>
+      <button class="tool-btn" id="toolBalls" type="button" aria-pressed="true">Cats <span class="emoji" aria-hidden="true">🐱</span></button>
+      <button class="tool-btn" id="toolSand" type="button" aria-pressed="false">Sand <span class="emoji" aria-hidden="true">🎊</span></button>
     </div>
     <div class="tool" role="group" aria-label="Sand color">
       <button class="tool-btn" id="colorGradient" type="button" aria-pressed="true"><span class="ico grad" aria-hidden="true"></span>Gradient color</button>
@@ -561,7 +562,7 @@
     </div>
     <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
     <span class="count" id="count">0 memories</span>
-    <span class="build" title="Version of this page">v7 · build 2026-11-02e</span>
+    <span class="build" title="Version of this page">v7 · build 2026-11-02f</span>
   </div>
 </div>
 
@@ -622,8 +623,8 @@
     returning = isReturning;
     $('choose').hidden = true;
     $('nameForm').hidden = false;
-    $('nameLabel').textContent = returning ? 'Enter your username' : 'Create a new username';
-    $('nameHelp').textContent = returning ? '' : 'Remember your username, it\'s the key to your cubby';
+    $('nameLabel').textContent = returning ? 'Enter your username 🔐' : 'Create a new username 🔐';
+    $('nameHelp').textContent = returning ? '' : 'Remember your username, it\'s the key to your cubby 🔑';
     $('nameHelp').hidden = returning;
     $('nameMsg').textContent = '';
     $('startMsg').textContent = '';
@@ -682,7 +683,7 @@
       clearTimeout(slow);
       checking = false;
       $('go').disabled = false;
-      $('go').textContent = 'Open my cubby';
+      $('go').textContent = 'Open my cubby ▶️';
     }
   });
 
@@ -1086,7 +1087,7 @@
     const el = $('status'), txt = $('statusText');
     el.classList.toggle('live', !!db && connected);
     txt.textContent = !db ? 'Not saving' : !connected ? 'Offline · saves when back'
-      : colab ? 'Live · ' + Math.max(1, here) + (Math.max(1, here) === 1 ? ' person' : ' people') : 'Saved';
+      : colab ? 'Live · ' + Math.max(1, here) + (Math.max(1, here) === 1 ? ' person' : ' people') : 'Saved ✅';
   }
 
   // ---- layout + render ----
