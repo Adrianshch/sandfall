@@ -461,7 +461,42 @@
   }
   .pen.pouring { animation: wiggle 0.3s ease-in-out infinite alternate; }
   @keyframes wiggle { from { rotate: -9deg; } to { rotate: 9deg; } }
-  body[data-tool="sand"] #world { cursor: none; }
+  body[data-tool="sand"] #world, body[data-tool="rake"] #world { cursor: none; }
+  /* the rake: a dashed ring the size of its reach follows the pointer */
+  .rake-ring {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 2;
+    pointer-events: none;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 2px dashed color-mix(in srgb, var(--ink) 55%, transparent);
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
+    translate: -50% -50%;
+  }
+  .rake-ring.raking { border-style: solid; }
+  /* hover names: which emotion the sand or ball under the pointer is */
+  .hover-name {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 3;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    font: 700 0.95rem var(--font-body);
+    color: var(--ink);
+    white-space: nowrap;
+    translate: 14px -130%;
+  }
+  .hover-name .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
   @media (max-width: 760px) {
     .tool { flex-direction: row; width: 100%; }
     .tool-btn { flex: 1; justify-content: center; }
@@ -491,8 +526,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../config.js"></script>
-<script src="engine.js?v=2026-11-02h"></script>
-<script src="cubbies.js?v=2026-11-02h"></script>
+<script src="engine.js?v=2026-11-02i"></script>
+<script src="cubbies.js?v=2026-11-02i"></script>
 </head>
 <body data-mode="play" data-tool="balls">
 
@@ -526,7 +561,7 @@
       </div>
     </form>
     <p class="msg" id="startMsg" role="status"></p>
-    <span class="build" title="Version of this page">v7 · build 2026-11-02h</span>
+    <span class="build" title="Version of this page">v7 · build 2026-11-02i</span>
   </div>
 </section>
 
@@ -552,6 +587,8 @@
   <main class="box" id="box">
     <canvas id="world"></canvas>
     <canvas class="pen" id="pen" width="96" height="96" hidden></canvas>
+    <div class="rake-ring" id="ring" hidden></div>
+    <div class="hover-name" id="hoverName" hidden><span class="dot"></span><span id="hoverText"></span></div>
     <div class="empty" id="empty"><p id="emptyText">Opening your cubby…</p></div>
   </main>
 
@@ -559,6 +596,7 @@
     <div class="tool" role="group" aria-label="What you make">
       <button class="tool-btn" id="toolBalls" type="button" aria-pressed="true">Cats <span class="emoji" aria-hidden="true">🐱</span></button>
       <button class="tool-btn" id="toolSand" type="button" aria-pressed="false">Sand <span class="emoji" aria-hidden="true">🎊</span></button>
+      <button class="tool-btn" id="toolRake" type="button" aria-pressed="false">Rake <span class="emoji" aria-hidden="true">🧹</span></button>
     </div>
     <div class="tool" role="group" aria-label="Sand color">
       <button class="tool-btn" id="colorGradient" type="button" aria-pressed="true"><span class="ico grad" aria-hidden="true"></span>Gradient color</button>
@@ -566,7 +604,7 @@
     </div>
     <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
     <span class="count" id="count">0 memories</span>
-    <span class="build" title="Version of this page">v7 · build 2026-11-02h</span>
+    <span class="build" title="Version of this page">v7 · build 2026-11-02i</span>
   </div>
 </div>
 
@@ -814,8 +852,8 @@
   });
 
   // ---- Balls or Sand ----
-  const emptyHint = () => tool === 'sand'
-    ? 'Pick a feeling below, then hold anywhere in the box to pour its sand.'
+  const emptyHint = () => tool === 'sand' ? 'Pick a feeling below, then hold anywhere in the box to pour its sand.'
+    : tool === 'rake' ? 'Pour some sand, then drag the rake through it to mix the colors.'
     : 'Pick a feeling below, then tap anywhere in the box.';
   function setTool(t) {
     endStrokes();
@@ -823,11 +861,13 @@
     document.body.dataset.tool = t;
     $('toolBalls').setAttribute('aria-pressed', t === 'balls' ? 'true' : 'false');
     $('toolSand').setAttribute('aria-pressed', t === 'sand' ? 'true' : 'false');
+    $('toolRake').setAttribute('aria-pressed', t === 'rake' ? 'true' : 'false');
     if (ready) $('emptyText').textContent = emptyHint();
     hidePen();
   }
   $('toolBalls').addEventListener('click', () => setTool('balls'));
   $('toolSand').addEventListener('click', () => setTool('sand'));
+  $('toolRake').addEventListener('click', () => setTool('rake'));
   // Gradient or solid sand (for new pours and pops; sand already made keeps its colours). Gradient: a
   // held pour starts at the cat's colour and turns whiter the longer it's held; press again for colour.
   function setColor(isSolid) {
@@ -841,19 +881,21 @@
   // ---- the cat that follows the pointer in sand mode ----
   const pen = $('pen');
   function drawPen() { drawMarbleOn(pen, mood); }
+  // (in rake mode the ring shows the rake's reach instead)
+  const ring = $('ring');
   function movePen(e) {
-    if (tool !== 'sand') return;
-    const b = box.getBoundingClientRect();
-    pen.style.left = (e.clientX - b.left) + 'px';
-    pen.style.top = (e.clientY - b.top) + 'px';
-    pen.hidden = false;
+    if (tool !== 'sand' && tool !== 'rake') return;
+    const b = box.getBoundingClientRect(), el = tool === 'sand' ? pen : ring;
+    el.style.left = (e.clientX - b.left) + 'px';
+    el.style.top = (e.clientY - b.top) + 'px';
+    el.hidden = false;
   }
-  function hidePen() { pen.hidden = true; pen.classList.remove('pouring'); }
+  function hidePen() { pen.hidden = true; pen.classList.remove('pouring'); ring.hidden = true; ring.classList.remove('raking'); }
 
-  // ---- sand mode: hold to pour, like the first Sandfall ----
+  // ---- sand mode: hold to pour, like the first Sandfall (the rake works the same way) ----
   // Every frame adds the finger's spot to the pour; every 100 ms the stretch so far is sent as one
-  // pour (l: 2, or l: 3 when it carries on from the last stretch's end point).
-  const POUR_MS = 100, BRUSH = 3;
+  // pour (l: 2, or l: 3 when it carries on from the last stretch's end point), or rake stroke (4, 5).
+  const POUR_MS = 100, BRUSH = 3, RAKE = 6;
   const strokes = new Map();
   function startPour(st, lead) {
     st.i = session + ':' + (seq++);
@@ -868,9 +910,12 @@
   function closePour(st, cont) {
     if (st.pts.length) {
       const p = st.lead ? st.lead.concat(st.pts) : st.pts;
-      const ch = { i: st.i, k: st.k, c: st.c, r: BRUSH, s: st.s, l: (st.lead ? 3 : 2) | (st.solid ? CW.SOLID : 0), p };
-      if (!st.solid) ch.t = String(st.pressed);   // gradient: fades to white the longer this press lasts
-      add(ch);
+      if (st.rake) add({ i: st.i, k: st.k, c: st.c, r: RAKE, s: st.s, l: st.lead ? 5 : 4, p });
+      else {
+        const ch = { i: st.i, k: st.k, c: st.c, r: BRUSH, s: st.s, l: (st.lead ? 3 : 2) | (st.solid ? CW.SOLID : 0), p };
+        if (!st.solid) ch.t = String(st.pressed);   // gradient: fades to white the longer this press lasts
+        add(ch);
+      }
     }
     if (cont) {
       const n = st.pts.length;
@@ -946,14 +991,15 @@
     if (!canPour) return;
     e.preventDefault();
     const [x, y] = toWorld(e);
-    if (tool === 'sand') {
+    hideName();
+    if (tool === 'sand' || tool === 'rake') {
       if (sandBlocked) { showNotice(SAND_RULES); return; }
       try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
-      const st = { x, y };
+      const st = { x, y, rake: tool === 'rake' };
       startPour(st, null);
       strokes.set(e.pointerId, st);
       movePen(e);
-      pen.classList.add('pouring');
+      (st.rake ? ring : pen).classList.add(st.rake ? 'raking' : 'pouring');
       return;
     }
     const now = performance.now();
@@ -968,17 +1014,43 @@
     movePen(e);
     const h = holds.get(e.pointerId) || strokes.get(e.pointerId);
     if (h) [h.x, h.y] = toWorld(e);
+    if (h || e.pointerType === 'touch') hideName(); else showName(e);
   });
   const release = e => {
     holds.delete(e.pointerId);
     const st = strokes.get(e.pointerId);
     if (st) { closePour(st, false); strokes.delete(e.pointerId); }
-    if (!strokes.size) pen.classList.remove('pouring');
+    if (!strokes.size) { pen.classList.remove('pouring'); ring.classList.remove('raking'); }
     if (e.pointerType !== 'mouse') hidePen();   // a finger lifted: no cat left floating
   };
   canvas.addEventListener('pointerup', release);
   canvas.addEventListener('pointercancel', release);
-  canvas.addEventListener('pointerleave', () => { if (!strokes.size) hidePen(); });
+  canvas.addEventListener('pointerleave', () => { if (!strokes.size) hidePen(); hideName(); });
+
+  // ---- hover names ----
+  // With a mouse or trackpad, pointing at a ball, or at an area that is mostly one cat's sand, shows
+  // that emotion's name beside the pointer.
+  const HOVER_R = 10;              // how far around the pointer to look at the sand, in grains
+  function showName(e) {
+    if (!ready) return hideName();
+    const [x, y] = toWorld(e);
+    let c = -1;
+    const ball = world.marbleOnScreen(x, y);
+    if (ball) c = ball.c;
+    else {
+      const h = world.sandCatAt(x, y, HOVER_R);
+      // a good amount of sand there, and most of it from one cat
+      if (h && h.n >= h.area * 0.4 && h.share >= 0.6) c = h.c;
+    }
+    if (c < 0) return hideName();
+    const b = box.getBoundingClientRect(), el = $('hoverName');
+    $('hoverText').textContent = MOODS[c].name;
+    el.style.setProperty('--c', MOODS[c].hex);
+    el.style.left = (e.clientX - b.left) + 'px';
+    el.style.top = (e.clientY - b.top) + 'px';
+    el.hidden = false;
+  }
+  function hideName() { $('hoverName').hidden = true; }
   function endStrokes() {
     holds.clear();
     for (const st of strokes.values()) closePour(st, false);
@@ -1102,6 +1174,7 @@
     world.setSize(Math.floor(GW * s), Math.floor(GH * s));
     const size = Math.round(R * 1.7 * s) + 'px';   // the sand-mode cat: a bit smaller than a marble
     pen.style.width = pen.style.height = size;
+    ring.style.width = ring.style.height = Math.round(RAKE * 2 * s) + 'px';   // the rake's reach
   }
   new ResizeObserver(fit).observe(box);
 

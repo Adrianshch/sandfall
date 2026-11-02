@@ -21,8 +21,9 @@
   const SAND_BAND_MS = 6000;     // a held pour drifts through the cat's light-to-deep shades this often
   const MAX_PATH = 80;           // numbers in one pour's path (40 points)
   const SOLID = 8;               // added to a pop's or pour's `l`: flat-coloured sand
+  const RAKE_R = 6;              // the rake's reach around the finger, in grains
   const FADE_MS = 15000;         // gradient pours: the cat's colour fades to white over this much holding
-  const kindOf = ch => ch.l & 7; // 0 drop, 1 pop, 2 pour, 3 pour continued
+  const kindOf = ch => ch.l & 7; // 0 drop, 1 pop, 2 pour, 3 pour continued, 4 rake, 5 rake continued
 
   // Cat pictures sit in images/ at the top of the site, next to this folder.
   const IMG = new URL('../images/', document.currentScript.src).href;
@@ -197,9 +198,10 @@
     // l: 0 drop a marble, 1 pop, 2 pour sand along a path, 3 the same but continuing a pour
     // (its first point is where the previous stretch ended, and gets no sand of its own).
     // + SOLID (8) on a pop or pour: its sand is the cat's one flat colour instead of a gradient.
-    if (l !== 0 && l !== 1 && l !== 2 && l !== 3 && l !== (1 | SOLID) && l !== (2 | SOLID) && l !== (3 | SOLID)) return null;
+    // 4 rake along a path, 5 the same continuing (first point = previous end, like 3).
+    if (![0, 1, 2, 3, 4, 5, 1 | SOLID, 2 | SOLID, 3 | SOLID].includes(l)) return null;
     const kind = l & 7;
-    if (!Array.isArray(p) || p.length % 2 || p.length < (kind === 3 ? 4 : 2) || p.length > (kind >= 2 ? MAX_PATH : 2)) return null;
+    if (!Array.isArray(p) || p.length % 2 || p.length < (kind === 3 || kind === 5 ? 4 : 2) || p.length > (kind >= 2 ? MAX_PATH : 2)) return null;
     for (let j = 0; j < p.length; j += 2) {
       const x = p[j], y = p[j + 1];
       if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= GW || y < 0 || y >= GH) return null;
@@ -207,7 +209,7 @@
     const out = { i, k, c: col, r, s, l, p: p.slice() };
     if (kind === 1 && typeof t === 'string' && t.length <= 120) out.t = t;
     // a gradient pour carries when its press began (t), so its fade to white is the same everywhere
-    if (kind >= 2 && typeof t === 'string' && /^\d{1,15}$/.test(t)) out.t = t;
+    if ((kind === 2 || kind === 3) && typeof t === 'string' && /^\d{1,15}$/.test(t)) out.t = t;
     return out;
   }
 
@@ -381,6 +383,7 @@
     const CELL = 1, SW = GW / CELL, SH = GH / CELL;   // sand grid: one grain per world unit (fine, like the first Sandfall)
     const SAND_R = 0.6;             // a grain's size when a marble bumps into it
     let sand = new Uint32Array(SW * SH);              // 0 = empty, otherwise the grain's colour (RGBA)
+    const own = new Uint8Array(SW * SH);              // which cat each grain came from: MOODS index + 1 (0 = unknown or empty)
     let sandCount = 0;
     const solid = new Uint32Array(SW * SH);           // cells inside a marble: stamped with solidVer when marked
 
@@ -409,7 +412,7 @@
     const openCell = (gx, gy) => gx >= 0 && gx < SW && gy >= 0 && gy < SH && !sand[gy * SW + gx] && solid[gy * SW + gx] !== solidVer;
 
     // A grain falls from (gx, gy), sliding diagonally off whatever it lands on, until it rests.
-    function pourGrain(gx, gy, col, rand) {
+    function pourGrain(gx, gy, col, rand, cat) {
       for (;;) {
         if (openCell(gx, gy + 1)) { gy++; continue; }
         const d = rand() < 0.5 ? -1 : 1;
@@ -419,6 +422,7 @@
       }
       const idx = gy * SW + gx;
       sand[idx] = col;
+      own[idx] = cat;
       sandCount++;
       if (gy < sandTop[gx]) sandTop[gx] = gy;
       patch[(gy >> 3) * PW + (gx >> 3)]++;
@@ -426,7 +430,7 @@
     }
     // Takes the grain at i out of the grid.
     function liftGrain(i) {
-      sand[i] = 0; sandCount--;
+      sand[i] = 0; own[i] = 0; sandCount--;
       const gx = i % SW, gy = (i - gx) / SW;
       patch[(gy >> 3) * PW + (gx >> 3)]--;
       if (gy === sandTop[gx]) { let y = gy; while (y < SH && !sand[y * SW + gx]) y++; sandTop[gx] = y; }
@@ -448,8 +452,9 @@
             const i = gy * SW + gx, col = sand[i];
             if (!col) continue;
             if (openCell(gx, gy + 1) || openCell(gx - 1, gy + 1) || openCell(gx + 1, gy + 1)) {
+              const cat = own[i];
               liftGrain(i);
-              const to = pourGrain(gx, gy, col, rand), tx = to % SW;
+              const to = pourGrain(gx, gy, col, rand, cat), tx = to % SW;
               moved++;
               if (gx < x0) x0 = gx; if (gx > x1) x1 = gx; if (gy < y0) y0 = gy; if (gy > y1) y1 = gy;
               m0 = Math.min(m0, gx - 1, tx - 1); m1 = Math.max(m1, gx + 1, tx + 1);
@@ -790,16 +795,16 @@
         const i = gy * SW + gx;
         if (!sand[i]) continue;
         const dx = (gx + 0.5) * CELL - b.x, dy = (gy + 0.5) * CELL - b.y;
-        if (dx * dx + dy * dy < b.r * b.r) { caught.push(gx, sand[i]); liftGrain(i); }
+        if (dx * dx + dy * dy < b.r * b.r) { caught.push(gx, sand[i], own[i]); liftGrain(i); }
       }
       if (!caught.length) return;
       markMarbles();
       const rand = rng32(((b.x * 977) ^ (b.y * 131)) >>> 0);
-      for (let k = 0; k < caught.length; k += 2) {
+      for (let k = 0; k < caught.length; k += 3) {
         const gx = caught[k];
         let gy = Math.floor((b.y - b.r) / CELL) - 1;          // just above the marble in that column
         while (gy >= 0 && !openCell(gx, gy)) gy--;
-        if (gy >= 0) pourGrain(gx, gy, caught[k + 1], rand);  // no room above at all: the grain is lost
+        if (gy >= 0) pourGrain(gx, gy, caught[k + 1], rand, caught[k + 2]);  // no room above at all: the grain is lost
       }
     }
 
@@ -962,7 +967,7 @@
           const gx = Math.round(cx + dx), gy = Math.round(cy + dy);
           if (!openCell(gx, gy)) continue;     // inside a marble or the pile: no sand there
           const col = flat || (pressed !== null ? fadeColour(pal.mid, (ch.k - pressed + frame * STEP_MS) / FADE_MS) : grainColour(pal, t, sp));
-          const idx = pourGrain(gx, gy, col, rand);
+          const idx = pourGrain(gx, gy, col, rand, ch.c + 1);
           if (grains) { grains.push(gx, gy, idx % SW, (idx - idx % SW) / SW, col); delay.push(frame); }
         }
       };
@@ -981,6 +986,64 @@
         frame++;
       }
       if (tl) tl.sand(grains, delay);
+    }
+
+    // The rake: dragged through sand, it pushes the grains under it a couple of grains ahead (a step to
+    // either side too), carving a trough and building a ridge; a grain pushed into another swaps with
+    // it, so where colours meet they mix. Held still, it stirs the grains around the spot. Each grain
+    // keeps its cat. Then everything settles like any event: sand left hanging pours down, and a
+    // marble that lost its support rolls (playOut).
+    function rakeSand(ch, tl) {
+      if (!sandCount) return;
+      const rand = rng32(ch.s), p = ch.p, spots = [];
+      markMarbles();
+      let px = p[0], py = p[1];
+      if (kindOf(ch) === 4) { rakeAt(px, py, 0, 0, rand); spots.push({ x: px, y: py, r: RAKE_R + 3 }); }
+      for (let j = 2; j < p.length; j += 2) {
+        const x = p[j], y = p[j + 1], dx = x - px, dy = y - py, d = Math.sqrt(dx * dx + dy * dy);
+        const ux = d ? dx / d : 0, uy = d ? dy / d : 0, steps = Math.max(1, Math.ceil(d));
+        for (let k = 1; k <= steps; k++) rakeAt(px + dx * k / steps, py + dy * k / steps, ux, uy, rand);
+        spots.push({ x, y, r: RAKE_R + 3 });
+        px = x; py = y;
+      }
+      playOut(ch, tl, [], spots);
+    }
+    // Puts a grain straight into an empty cell (no falling), keeping the sand bookkeeping right.
+    function placeGrain(i, col, cat) {
+      sand[i] = col; own[i] = cat; sandCount++;
+      const gx = i % SW, gy = (i - gx) / SW;
+      if (gy < sandTop[gx]) sandTop[gx] = gy;
+      patch[(gy >> 3) * PW + (gx >> 3)]++;
+    }
+    function rakeAt(cx, cy, ux, uy, rand) {
+      const r = RAKE_R, still = !ux && !uy;
+      const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(SW - 1, Math.floor(cx + r));
+      const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(SH - 1, Math.floor(cy + r));
+      // the grains furthest ahead go first, so each grain moves at most once per step
+      const fx = ux > 0, fy = uy > 0;
+      for (let a = 0; a <= y1 - y0; a++) {
+        const gy = fy ? y1 - a : y0 + a;
+        for (let b = 0; b <= x1 - x0; b++) {
+          const gx = fx ? x1 - b : x0 + b;
+          const dx = gx + 0.5 - cx, dy = gy + 0.5 - cy;
+          if (dx * dx + dy * dy > r * r) continue;
+          const i = gy * SW + gx;
+          if (!sand[i]) continue;
+          const jx = Math.floor(rand() * 3) - 1, jy = Math.floor(rand() * 3) - 1;
+          const qx = still ? gx + jx : Math.round(gx + ux * 2) + jx, qy = still ? gy + jy : Math.round(gy + uy * 2) + jy;
+          if (qx < 0 || qx >= SW || qy < 0 || qy >= SH) continue;
+          const q = qy * SW + qx;
+          if (q === i) continue;
+          if (sand[q]) {                       // into another grain: they swap (the colours mix)
+            const c = sand[i]; sand[i] = sand[q]; sand[q] = c;
+            const o = own[i]; own[i] = own[q]; own[q] = o;
+          } else if (solid[q] !== solidVer) {   // into an empty spot (never into a marble): it moves there
+            const c = sand[i], o = own[i];
+            liftGrain(i);
+            placeGrain(q, c, o);
+          }
+        }
+      }
     }
 
     function place(ch, tl) {
@@ -1050,7 +1113,7 @@
       for (const [gx, gy, s, t] of spots) {
         if (!openCell(gx, gy)) continue;     // that spot is solid: no sand appears inside sealed space
         const col = flat || grainColour(pal, t, s);
-        const idx = pourGrain(gx, gy, col, rand);
+        const idx = pourGrain(gx, gy, col, rand, target.c + 1);
         if (grains) grains.push(gx, gy, idx % SW, (idx - idx % SW) / SW, col);
       }
       if (tl) tl.sand(grains);
@@ -1085,6 +1148,7 @@
       balls = from ? copyBalls(from.balls) : [];
       uses = from ? from.uses.slice() : noUses();
       if (from) { sand.set(from.sand); sandCount = from.sandCount; } else { sand.fill(0); sandCount = 0; }
+      if (from && from.own) own.set(from.own); else own.fill(0);
       refreshSandTop();
       worldVersion++;
       committed = cp ? cp.idx : 0;
@@ -1103,7 +1167,7 @@
         everCommitted.add(ch.i);
         const tl = fresh ? makeTimeline() : null;
         const kind = kindOf(ch);
-        if (kind === 1) pop(ch, tl); else if (kind >= 2) pourSand(ch, tl); else place(ch, tl);
+        if (kind === 1) pop(ch, tl); else if (kind >= 4) rakeSand(ch, tl); else if (kind >= 2) pourSand(ch, tl); else place(ch, tl);
         if (kind === 0 || kind === 2) uses[ch.c]++;
         if (tl) {
           const anim = tl.finish(new Set(balls.map(b => b.i)));
@@ -1113,7 +1177,7 @@
         }
         committed++;
         if (committed % CHECKPOINT_EVERY === 0) {
-          checkpoints.push({ idx: committed, balls: copyBalls(balls), sand: sand.slice(), sandCount, uses: uses.slice() });
+          checkpoints.push({ idx: committed, balls: copyBalls(balls), sand: sand.slice(), own: own.slice(), sandCount, uses: uses.slice() });
           if (checkpoints.length > keepCheckpoints) checkpoints.shift();
         }
       }
@@ -1121,7 +1185,7 @@
     function resetLog() {
       chunks = []; seen = new Set(); committed = 0; checkpoints = [];
       everCommitted = new Set(); balls = []; anims = [];
-      sand.fill(0); sandCount = 0; sandTop.fill(SH); patch.fill(0);
+      sand.fill(0); own.fill(0); sandCount = 0; sandTop.fill(SH); patch.fill(0);
       base = null;
       uses = noUses();
       worldVersion++;
@@ -1138,7 +1202,7 @@
       for (let j = checkpoints.length - 1; j >= 0; j--) {
         const cp = checkpoints[j], last = chunks[cp.idx - 1];
         if (!last || last.k >= before) continue;
-        return { balls: cp.balls, sand: cp.sand, sandCount: cp.sandCount, uses: cp.uses, upto: { k: last.k, i: last.i }, count: (base ? base.count : 0) + cp.idx };
+        return { balls: cp.balls, sand: cp.sand, own: cp.own, sandCount: cp.sandCount, uses: cp.uses, upto: { k: last.k, i: last.i }, count: (base ? base.count : 0) + cp.idx };
       }
       return null;
     }
@@ -1152,6 +1216,26 @@
         if (dx * dx + dy * dy <= rr * rr) return true;
       }
       return false;
+    }
+    // Which cat's sand mostly fills the area around (x, y): {c, share, n}, or null if there's
+    // little sand there. Grains whose cat isn't known (sand saved before v7) don't count.
+    function sandCatAt(x, y, rad) {
+      const counts = new Map();
+      let n = 0;
+      const x0 = Math.max(0, Math.floor(x - rad)), x1 = Math.min(SW - 1, Math.floor(x + rad));
+      const y0 = Math.max(0, Math.floor(y - rad)), y1 = Math.min(SH - 1, Math.floor(y + rad));
+      for (let gy = y0; gy <= y1; gy++) for (let gx = x0; gx <= x1; gx++) {
+        const dx = gx + 0.5 - x, dy = gy + 0.5 - y;
+        if (dx * dx + dy * dy > rad * rad) continue;
+        const o = own[gy * SW + gx];
+        if (!o) continue;
+        n++;
+        counts.set(o, (counts.get(o) || 0) + 1);
+      }
+      if (!n) return null;
+      let best = 0, c = 0;
+      for (const [o, k] of counts) if (k > best) { best = k; c = o - 1; }
+      return { c, share: best / n, n, area: Math.round(3.14159 * rad * rad) };
     }
     // Marbles where they are drawn right now (settled or mid-fall), for tapping.
     let onScreen = [];
@@ -1300,14 +1384,14 @@
 
     return {
       canvas, popping,
-      addChunk, commit, resetLog, startFrom, savedState, setSize, render, marbleOnScreen, formingAt,
+      addChunk, commit, resetLog, startFrom, savedState, setSize, render, marbleOnScreen, formingAt, sandCatAt,
       // memories in the picture (merged marbles hold several)
       memories() { let n = 0; for (const b of balls) n += b.n; return n; },
       isEmpty: () => balls.length === 0 && sandCount === 0 && anims.length === 0 && committed === chunks.length,
       // drops that have arrived but aren't in the picture yet
       waiting: () => chunks.length - committed,
       // everything settled so far, for tests: marbles, sand grid and how many drops are in
-      snapshot: () => ({ balls: copyBalls(balls), sand: sand.slice(), committed, total: chunks.length }),
+      snapshot: () => ({ balls: copyBalls(balls), sand: sand.slice(), own: own.slice(), committed, total: chunks.length }),
       // how many drops the picture holds, counting those in the saved picture it started from
       dropCount: () => (base ? base.count : 0) + committed,
       // uses per cat so far (index = MOODS index); read it, don't change it
@@ -1319,23 +1403,26 @@
   // {v, k, i, n, b, s}: the last drop it holds (k, i), how many drops it holds (n), the marbles and
   // the uses per cat as JSON (b) and the sand grid deflated and in base64 (s). Browsers without CompressionStream
   // neither save nor read them; they just replay every drop.
-  const SNAP_V = 2;                // 2: b holds {m: marbles, u: uses per cat}; 1 (v6): b is the marbles only
+  const SNAP_V = 3;                // 3: s also holds each grain's cat; 2: b holds {m: marbles, u: uses per cat}; 1 (v6): b is the marbles only
   const canPack = typeof CompressionStream === 'function' && typeof DecompressionStream === 'function';
   async function squeeze(bytes, stream) {
     const out = await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer();
     return new Uint8Array(out);
   }
   async function packState(st) {
-    const z = await squeeze(new Uint8Array(st.sand.buffer, st.sand.byteOffset, st.sand.byteLength), new CompressionStream('deflate'));
+    const raw = new Uint8Array(GW * GH * 5);         // the sand grid (4 bytes a grain), then each grain's cat (1 byte)
+    raw.set(new Uint8Array(st.sand.buffer, st.sand.byteOffset, st.sand.byteLength), 0);
+    if (st.own) raw.set(st.own, GW * GH * 4);
+    const z = await squeeze(raw, new CompressionStream('deflate'));
     let bin = '';
     for (let j = 0; j < z.length; j += 0x8000) bin += String.fromCharCode.apply(null, z.subarray(j, j + 0x8000));
     return { v: SNAP_V, k: st.upto.k, i: st.upto.i, n: st.count, b: JSON.stringify({ m: st.balls, u: st.uses }), s: btoa(bin) };
   }
   async function unpackState(o) {
-    if (!o || (o.v !== 1 && o.v !== 2) || !Number.isFinite(o.k) || typeof o.i !== 'string' || !Number.isInteger(o.n) || typeof o.b !== 'string' || typeof o.s !== 'string') return null;
+    if (!o || (o.v !== 1 && o.v !== 2 && o.v !== 3) || !Number.isFinite(o.k) || typeof o.i !== 'string' || !Number.isInteger(o.n) || typeof o.b !== 'string' || typeof o.s !== 'string') return null;
     const b = JSON.parse(o.b);
     const balls = o.v === 1 ? b : b && b.m;
-    let uses = o.v === 2 && b && Array.isArray(b.u) ? b.u : null;
+    let uses = o.v >= 2 && b && Array.isArray(b.u) ? b.u : null;
     if (!Array.isArray(balls) || balls.length > 5000) return null;
     for (const b of balls) {
       if (!b || ![b.x, b.y, b.r, b.n].every(Number.isFinite) || !Number.isInteger(b.c) || b.c < 0 || b.c >= MOODS.length || typeof b.i !== 'string') return null;
@@ -1343,8 +1430,10 @@
     const bin = atob(o.s), z = new Uint8Array(bin.length);
     for (let j = 0; j < bin.length; j++) z[j] = bin.charCodeAt(j);
     const raw = await squeeze(z, new DecompressionStream('deflate'));
-    if (raw.length !== GW * GH * 4) return null;
-    const sand = new Uint32Array(raw.buffer, raw.byteOffset, GW * GH).slice();
+    if (raw.length !== GW * GH * (o.v === 3 ? 5 : 4)) return null;
+    const sand = new Uint32Array(raw.buffer.slice(raw.byteOffset, raw.byteOffset + GW * GH * 4));
+    const own = o.v === 3 ? raw.slice(GW * GH * 4) : new Uint8Array(GW * GH);
+    for (let j = 0; j < own.length; j++) if (own[j] > MOODS.length || !sand[j]) own[j] = 0;
     let sandCount = 0;
     for (let j = 0; j < sand.length; j++) if (sand[j]) sandCount++;
     if (!uses || uses.length > MOODS.length || !uses.every(n => Number.isInteger(n) && n >= 0)) {
@@ -1352,7 +1441,7 @@
       for (const m of balls) uses[m.c] += m.n;
     }
     while (uses.length < MOODS.length) uses.push(0);
-    return { balls, sand, sandCount, uses, upto: { k: o.k, i: o.i }, count: o.n };
+    return { balls, sand, own, sandCount, uses, upto: { k: o.k, i: o.i }, count: o.n };
   }
 
   window.CatWorld = {
