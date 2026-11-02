@@ -4,6 +4,7 @@
   --bg: #e4e9ed;
   --sky: #f3f6f8;
   --box: #fbfcfd;
+  --play: #efe8dc;   /* the sand box: a soft sand tint, so white sand still shows */
   --ink: #1c2530;
   --muted: #5a6876;
   --surface: rgba(255, 255, 255, 0.82);
@@ -19,14 +20,14 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #10151b; --sky: #1a222b; --box: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
+    --bg: #10151b; --sky: #1a222b; --box: #161d25; --play: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
     --surface: rgba(24, 31, 39, 0.84); --line: rgba(232, 237, 242, 0.12);
     --accent: #e59a5e; --live: #4cc48c; --warn: #f07a5e; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #10151b; --sky: #1a222b; --box: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
+  --bg: #10151b; --sky: #1a222b; --box: #161d25; --play: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
   --surface: rgba(24, 31, 39, 0.84); --line: rgba(232, 237, 242, 0.12);
   --accent: #e59a5e; --live: #4cc48c; --warn: #f07a5e; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   color-scheme: dark;
@@ -149,7 +150,7 @@ body {
 }
 .tile .art {
   display: block;
-  background: var(--box);
+  background: var(--play);
   border-radius: 12px;
   box-shadow: 0 0 0 1px var(--line), var(--shadow);
 }
@@ -188,6 +189,6 @@ body[data-wall="admin"] .tile:hover .art, body[data-wall="admin"] .tile:focus-vi
 }
 .dialog h2 { margin: 0; font: 700 1.3rem var(--font-display); }
 .dialog p { margin: 0; color: var(--muted); line-height: 1.45; }
-.dialog canvas { width: 100%; height: auto; aspect-ratio: 480 / 300; background: var(--box); border-radius: 12px; box-shadow: 0 0 0 1px var(--line); }
+.dialog canvas { width: 100%; height: auto; aspect-ratio: 480 / 300; background: var(--play); border-radius: 12px; box-shadow: 0 0 0 1px var(--line); }
 .row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
 @media (prefers-reduced-motion: reduce) { body[data-wall="admin"] .tile::after { transition: none; } }

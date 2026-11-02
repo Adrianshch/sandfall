@@ -22,6 +22,7 @@
     --bg: #e4e9ed;
     --sky: #f3f6f8;
     --box: #fbfcfd;
+    --play: #efe8dc;   /* the sand box: a soft sand tint, so white sand still shows */
     --ink: #1c2530;
     --muted: #5a6876;
     --surface: rgba(255, 255, 255, 0.82);
@@ -38,14 +39,14 @@
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #10151b; --sky: #1a222b; --box: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
+      --bg: #10151b; --sky: #1a222b; --box: #161d25; --play: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
       --surface: rgba(24, 31, 39, 0.84); --line: rgba(232, 237, 242, 0.12);
       --accent: #e59a5e; --live: #4cc48c; --warn: #f07a5e; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #10151b; --sky: #1a222b; --box: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
+    --bg: #10151b; --sky: #1a222b; --box: #161d25; --play: #161d25; --ink: #e8edf2; --muted: #8d9aa7;
     --surface: rgba(24, 31, 39, 0.84); --line: rgba(232, 237, 242, 0.12);
     --accent: #e59a5e; --live: #4cc48c; --warn: #f07a5e; --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
     color-scheme: dark;
@@ -130,6 +131,9 @@
     display: block;
     max-width: 100%;
     background: var(--box);
+  }
+  #world {
+    background: var(--play);
     border-radius: 14px;
     box-shadow: 0 0 0 1px var(--line), var(--shadow);
     touch-action: none;
@@ -487,8 +491,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../config.js"></script>
-<script src="engine.js?v=2026-11-02f"></script>
-<script src="cubbies.js?v=2026-11-02f"></script>
+<script src="engine.js?v=2026-11-02g"></script>
+<script src="cubbies.js?v=2026-11-02g"></script>
 </head>
 <body data-mode="play" data-tool="balls">
 
@@ -522,7 +526,7 @@
       </div>
     </form>
     <p class="msg" id="startMsg" role="status"></p>
-    <span class="build" title="Version of this page">v7 · build 2026-11-02f</span>
+    <span class="build" title="Version of this page">v7 · build 2026-11-02g</span>
   </div>
 </section>
 
@@ -562,7 +566,7 @@
     </div>
     <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
     <span class="count" id="count">0 memories</span>
-    <span class="build" title="Version of this page">v7 · build 2026-11-02f</span>
+    <span class="build" title="Version of this page">v7 · build 2026-11-02g</span>
   </div>
 </div>
 

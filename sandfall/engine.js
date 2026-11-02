@@ -21,7 +21,7 @@
   const SAND_BAND_MS = 6000;     // a held pour drifts through the cat's light-to-deep shades this often
   const MAX_PATH = 80;           // numbers in one pour's path (40 points)
   const SOLID = 8;               // added to a pop's or pour's `l`: flat-coloured sand
-  const FADE_MS = 4000;          // gradient pours: the cat's colour fades to white over this much holding
+  const FADE_MS = 15000;         // gradient pours: the cat's colour fades to white over this much holding
   const kindOf = ch => ch.l & 7; // 0 drop, 1 pop, 2 pour, 3 pour continued
 
   // Cat pictures sit in images/ at the top of the site, next to this folder.
