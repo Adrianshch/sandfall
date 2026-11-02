@@ -1,4 +1,4 @@
-// Cat Emotions v6 engine: the v5 cat-memory world (marbles that merge, popping into sand),
+// Sand Emotions engine: the v5 cat-memory world (marbles that merge, popping into sand),
 // packaged so one page can run many separate worlds (one per cubby).
 // Every screen rebuilds a cubby from the same ordered list of drops. A drop is a tap position
 // plus a seed. Settling a marble uses only that seed and plain arithmetic (+ - * / sqrt), so

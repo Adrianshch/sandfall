@@ -1,4 +1,4 @@
-// Cat Emotions v6: cubbies in Firebase (Realtime Database, no sign-in).
+// Sand Emotions v6: cubbies in Firebase (Realtime Database, no sign-in).
 //   cubbies/<id>       {made}: one entry per cubby; the wall watches this list
 //   drops/<id>/<drop>  the cubby's drops and pops, the same records as v5
 //   snaps/<id>         a saved picture of the cubby, so screens don't replay every drop

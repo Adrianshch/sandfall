@@ -1,4 +1,4 @@
-// Cat Emotions: the class wall. The class colab picture (a bit bigger) beside every student's
+// Sand Emotions: the class wall. The class colab picture (a bit bigger) beside every student's
 // cubby, live, with no names, and one bar showing which cats the whole class has used.
 // display/ shows it; admin-cappy/ (body data-wall="admin") also lets the teacher remove a cubby
 // or start the colab fresh.
@@ -211,7 +211,7 @@
   function renderEmpty() {
     $('empty').hidden = tiles.size > 0 || !db;
     $('empty').textContent = !loaded ? 'Connecting…'
-      : 'No student cubbies yet. Students open the Cat Emotions link on their tablets and choose "My own cubby".';
+      : 'No student cubbies yet. Students open the Sand Emotions link on their tablets and choose "My own cubby".';
   }
   function renderStatus() {
     const el = $('status'), txt = $('statusText');

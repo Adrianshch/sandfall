@@ -1,4 +1,4 @@
-# Cat Emotions cubbies (v6)
+# Sand Emotions cubbies (v6)
 
 Each student can make their own cubby, a private cat-memory sand picture that only they can change, or join the **class colab**, one picture the whole class makes together. The class wall shows the colab and every cubby at once, live, with no names.
 
