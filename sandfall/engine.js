@@ -28,35 +28,35 @@
   // Bump this whenever a cat picture changes, so browsers fetch the new one instead of a saved copy.
   const ASSET_V = '2026-10-20d';
 
-  // Colours follow the mood meter: pleasant + calm = green, pleasant + high energy = yellow,
+  // Colours come from the class palette (2026-11-02) and follow the mood meter: pleasant + calm = green, pleasant + high energy = yellow,
   // unpleasant + calm = blue, unpleasant + high energy = red. Each ball gets its own shade.
   const MOODS = [
-    { name: 'Curious',  hex: '#f4d35e', img: IMG + 'cat-curious.webp' },   // yellow
-    { name: 'Angry',    hex: '#c1121f', img: IMG + 'cat-angry.webp' },     // red
-    { name: 'Sad',      hex: '#1d4e89', img: IMG + 'cat-sad.webp' },       // blue
-    { name: 'Happy',    hex: '#ffd60a', img: IMG + 'cat-happy2.webp' },    // yellow
-    { name: 'Scared',   hex: '#e5383b', img: IMG + 'cat-scared.webp' },    // red
-    { name: 'Calm',     hex: '#40916c', img: IMG + 'cat-calm.webp' },      // green
-    { name: 'Confused', hex: '#4ea8de', img: IMG + 'cat-confused.webp' },  // blue
-    { name: 'Excited',  hex: '#ffb703', img: IMG + 'cat-excited.webp' },   // yellow
-    { name: 'Hungry',   hex: '#fcbf49', img: IMG + 'cat-hungry.webp' },    // yellow
-    { name: 'Silly',    hex: '#ffe066', img: IMG + 'cat-silly.webp' },     // yellow
-    { name: 'Upset',    hex: '#ff4d6d', img: IMG + 'cat-upset.webp' },     // red
-    { name: 'Bored',    hex: '#6c8ebf', img: IMG + 'cat-bored.webp' },     // blue
-    { name: 'Nervous',  hex: '#f4845f', img: IMG + 'cat-nervous.webp' },   // red
-    { name: 'Playful',  hex: '#fcbf49', img: IMG + 'cat-playful.webp' },   // yellow (retired from the panel)
-    { name: 'Chill',    hex: '#74c69d', img: IMG + 'cat-chill.webp' },     // green
-    { name: 'Worried',  hex: '#9d0208', img: IMG + 'cat-worried.webp' },   // red (retired from the panel)
-    { name: 'Focused',  hex: '#2d6a4f', img: IMG + 'cat-focused.webp' },   // green
-    { name: 'Tired',    hex: '#5e81ac', img: IMG + 'cat-tired.webp' },     // blue
+    { name: 'Curious',  hex: '#d4982e', img: IMG + 'cat-curious.webp' },   // yellow
+    { name: 'Angry',    hex: '#8a1b0d', img: IMG + 'cat-angry.webp' },     // red
+    { name: 'Sad',      hex: '#257b8c', img: IMG + 'cat-sad.webp' },       // blue
+    { name: 'Happy',    hex: '#edb75c', img: IMG + 'cat-happy2.webp' },    // yellow
+    { name: 'Scared',   hex: '#9f4c4a', img: IMG + 'cat-scared.webp' },    // red
+    { name: 'Calm',     hex: '#46805b', img: IMG + 'cat-calm.webp' },      // green
+    { name: 'Confused', hex: '#6cb4c4', img: IMG + 'cat-confused.webp' },  // blue
+    { name: 'Excited',  hex: '#d28224', img: IMG + 'cat-excited.webp' },   // yellow
+    { name: 'Hungry',   hex: '#d4982e', img: IMG + 'cat-hungry.webp' },    // yellow (retired from the panel)
+    { name: 'Silly',    hex: '#ebc272', img: IMG + 'cat-silly.webp' },     // yellow
+    { name: 'Upset',    hex: '#cf959c', img: IMG + 'cat-upset.webp' },     // red
+    { name: 'Bored',    hex: '#b3a6c8', img: IMG + 'cat-bored.webp' },     // blue
+    { name: 'Nervous',  hex: '#cc512c', img: IMG + 'cat-nervous.webp' },   // red
+    { name: 'Playful',  hex: '#d28224', img: IMG + 'cat-playful.webp' },   // yellow (retired from the panel)
+    { name: 'Chill',    hex: '#adbd8a', img: IMG + 'cat-chill.webp' },     // green
+    { name: 'Worried',  hex: '#8a1b0d', img: IMG + 'cat-worried.webp' },   // red (retired from the panel)
+    { name: 'Focused',  hex: '#657e2e', img: IMG + 'cat-focused.webp' },   // green
+    { name: 'Tired',    hex: '#6f4665', img: IMG + 'cat-tired.webp' },     // blue
   ];
   const PICKER = [3, 2, 4, 6, 5];          // main row: Happy, Sad, Scared, Confused, Calm
   // Side panel: every cat (the starters too), grouped by colour family.
   const MORE_GROUPS = [
-    { title: 'Yellow', note: 'happy and full of energy', hex: '#ffd60a', ids: [3, 7, 0, 9, 8] },
-    { title: 'Green',  note: 'happy and calm',           hex: '#40916c', ids: [5, 14, 16] },
-    { title: 'Blue',   note: 'upset and low energy',     hex: '#1d4e89', ids: [2, 6, 11, 17] },
-    { title: 'Red',    note: 'upset and full of energy', hex: '#c1121f', ids: [4, 1, 12, 10] },
+    { title: 'Yellow', note: 'happy and full of energy', hex: '#edb75c', ids: [3, 7, 0, 9] },
+    { title: 'Green',  note: 'happy and calm',           hex: '#46805b', ids: [5, 14, 16] },
+    { title: 'Blue',   note: 'upset and low energy',     hex: '#257b8c', ids: [2, 6, 11, 17] },
+    { title: 'Red',    note: 'upset and full of energy', hex: '#8a1b0d', ids: [4, 1, 12, 10] },
   ];
 
   function rng32(a) {
