@@ -988,38 +988,30 @@
       if (tl) tl.sand(grains, delay);
     }
 
-    // The rake: dragged through sand, it pushes the grains under it a couple of grains ahead (a step to
-    // either side too), carving a trough and building a ridge; a grain pushed into another swaps with
-    // it, so where colours meet they mix. Held still, it stirs the grains around the spot. Each grain
-    // keeps its cat. Then everything settles like any event: sand left hanging pours down, and a
-    // marble that lost its support rolls (playOut).
-    function rakeSand(ch, tl) {
+    // The rake smears colour like paint: as it moves, each grain under it takes on part of the colour
+    // of the grain just behind it, so colour is dragged along the stroke in smooth streaks, and where
+    // colours meet they blend. Its tines (every third line across the rake) drag hard, the gaps
+    // between them a little, so a stroke leaves parallel lines. Grains don't move (the pile keeps its
+    // shape), and nothing is random. A grain mostly taken over gets the dragged grain's cat too.
+    const TINE = 3, TINE_DRAG = 0.6, GAP_DRAG = 0.15;
+    function rakeSand(ch) {
       if (!sandCount) return;
-      const rand = rng32(ch.s), p = ch.p, spots = [];
-      markMarbles();
+      const p = ch.p;
       let px = p[0], py = p[1];
-      if (kindOf(ch) === 4) { rakeAt(px, py, 0, 0, rand); spots.push({ x: px, y: py, r: RAKE_R + 3 }); }
       for (let j = 2; j < p.length; j += 2) {
         const x = p[j], y = p[j + 1], dx = x - px, dy = y - py, d = Math.sqrt(dx * dx + dy * dy);
-        const ux = d ? dx / d : 0, uy = d ? dy / d : 0, steps = Math.max(1, Math.ceil(d));
-        for (let k = 1; k <= steps; k++) rakeAt(px + dx * k / steps, py + dy * k / steps, ux, uy, rand);
-        spots.push({ x, y, r: RAKE_R + 3 });
+        if (d) {
+          const ux = dx / d, uy = dy / d, steps = Math.ceil(d);
+          for (let k = 1; k <= steps; k++) rakeAt(px + dx * k / steps, py + dy * k / steps, ux, uy);
+        }
         px = x; py = y;
       }
-      playOut(ch, tl, [], spots);
     }
-    // Puts a grain straight into an empty cell (no falling), keeping the sand bookkeeping right.
-    function placeGrain(i, col, cat) {
-      sand[i] = col; own[i] = cat; sandCount++;
-      const gx = i % SW, gy = (i - gx) / SW;
-      if (gy < sandTop[gx]) sandTop[gx] = gy;
-      patch[(gy >> 3) * PW + (gx >> 3)]++;
-    }
-    function rakeAt(cx, cy, ux, uy, rand) {
-      const r = RAKE_R, still = !ux && !uy;
+    function rakeAt(cx, cy, ux, uy) {
+      const r = RAKE_R;
       const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(SW - 1, Math.floor(cx + r));
       const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(SH - 1, Math.floor(cy + r));
-      // the grains furthest ahead go first, so each grain moves at most once per step
+      // the grains furthest ahead go first, so each takes colour from a grain not yet smeared this step
       const fx = ux > 0, fy = uy > 0;
       for (let a = 0; a <= y1 - y0; a++) {
         const gy = fy ? y1 - a : y0 + a;
@@ -1029,19 +1021,17 @@
           if (dx * dx + dy * dy > r * r) continue;
           const i = gy * SW + gx;
           if (!sand[i]) continue;
-          const jx = Math.floor(rand() * 3) - 1, jy = Math.floor(rand() * 3) - 1;
-          const qx = still ? gx + jx : Math.round(gx + ux * 2) + jx, qy = still ? gy + jy : Math.round(gy + uy * 2) + jy;
-          if (qx < 0 || qx >= SW || qy < 0 || qy >= SH) continue;
-          const q = qy * SW + qx;
-          if (q === i) continue;
-          if (sand[q]) {                       // into another grain: they swap (the colours mix)
-            const c = sand[i]; sand[i] = sand[q]; sand[q] = c;
-            const o = own[i]; own[i] = own[q]; own[q] = o;
-          } else if (solid[q] !== solidVer) {   // into an empty spot (never into a marble): it moves there
-            const c = sand[i], o = own[i];
-            liftGrain(i);
-            placeGrain(q, c, o);
-          }
+          const bx = Math.round(gx - ux), by = Math.round(gy - uy);
+          if (bx < 0 || bx >= SW || by < 0 || by >= SH) continue;
+          const q = by * SW + bx;
+          if (q === i || !sand[q]) continue;
+          const side = dx * -uy + dy * ux + r;          // position across the rake, 0 to 2r
+          const w = side - Math.floor(side / TINE) * TINE < 1 ? TINE_DRAG : GAP_DRAG;
+          const c = sand[i], e = sand[q];
+          const cr = c & 255, cg = (c >> 8) & 255, cb = (c >> 16) & 255;
+          const nr = (cr + ((e & 255) - cr) * w) | 0, ng = (cg + (((e >> 8) & 255) - cg) * w) | 0, nb = (cb + (((e >> 16) & 255) - cb) * w) | 0;
+          sand[i] = ((255 << 24) | (nb << 16) | (ng << 8) | nr) >>> 0;
+          if (w >= 0.5) own[i] = own[q];
         }
       }
     }
@@ -1167,7 +1157,7 @@
         everCommitted.add(ch.i);
         const tl = fresh ? makeTimeline() : null;
         const kind = kindOf(ch);
-        if (kind === 1) pop(ch, tl); else if (kind >= 4) rakeSand(ch, tl); else if (kind >= 2) pourSand(ch, tl); else place(ch, tl);
+        if (kind === 1) pop(ch, tl); else if (kind >= 4) rakeSand(ch); else if (kind >= 2) pourSand(ch, tl); else place(ch, tl);
         if (kind === 0 || kind === 2) uses[ch.c]++;
         if (tl) {
           const anim = tl.finish(new Set(balls.map(b => b.i)));
