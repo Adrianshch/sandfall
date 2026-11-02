@@ -113,11 +113,14 @@
   function makeColab(db) {
     return db.ref('cubbies/' + COLAB_ID).set({ made: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
   }
-  // Start fresh: everyone's picture clears and a new colab begins.
-  async function clearColab(db) {
-    await removeCubby(db, COLAB_ID);
-    await makeColab(db);
+  // Refresh: the picture clears on every screen and a new one begins (for the colab, or a
+  // student's own cubby, whose username keeps working). The cubby is deleted and made again;
+  // its new `made` time is the new start, and screens that see it follow from there.
+  async function refreshCubby(db, id) {
+    await removeCubby(db, id);
+    await db.ref('cubbies/' + id).set({ made: firebase.database.ServerValue.TIMESTAMP });
   }
+  const clearColab = db => refreshCubby(db, COLAB_ID);
 
-  window.Cubbies = { connect, tidyName, cubbyId, follow, sendDrop, makeSaver, removeCubby, COLAB_ID, watchColab, clearColab };
+  window.Cubbies = { connect, tidyName, cubbyId, follow, sendDrop, makeSaver, removeCubby, COLAB_ID, watchColab, clearColab, refreshCubby };
 })();

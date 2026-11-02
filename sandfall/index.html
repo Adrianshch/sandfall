@@ -11,7 +11,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@500&family=Oswald:wght@600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap">
 <style>
   [hidden] { display: none !important; }
   :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
@@ -30,10 +30,11 @@
     --live: #2f9e6a;
     --warn: #b5482f;
     --shadow: 0 10px 30px rgba(28, 37, 48, 0.14);
-    --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
-    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-    --font-label: "Oswald", "Arial Narrow", "Helvetica Neue", sans-serif-condensed, sans-serif;
+    /* Atkinson Hyperlegible: made by the Braille Institute to be easy to read for low vision; clear for children too */
+    --font-display: "Atkinson Hyperlegible", "Verdana", system-ui, sans-serif;
+    --font-body: "Atkinson Hyperlegible", "Verdana", system-ui, sans-serif;
+    --font-mono: "Atkinson Hyperlegible", "Verdana", system-ui, sans-serif;
+    --font-label: "Atkinson Hyperlegible", "Verdana", system-ui, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -90,10 +91,8 @@
   }
   .beta {
     font-family: var(--font-mono);
-    font-size: 0.62rem;
-    font-weight: 500;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    font-size: 0.72rem;
+    font-weight: 700;
     color: var(--accent);
     border: 1px solid currentColor;
     border-radius: 4px;
@@ -203,9 +202,7 @@
     transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
   .mood .label {
-    font: 600 var(--fs, 0.66rem) / 1 var(--font-label);
-    text-transform: uppercase;
-    letter-spacing: 0.01em;
+    font: 700 var(--fs, 0.78rem) / 1 var(--font-label);
     white-space: nowrap;
     color: var(--muted);
   }
@@ -326,7 +323,7 @@
     .dock { width: 100%; }
     .moods { grid-template-columns: repeat(6, minmax(0, 1fr)); width: 100%; gap: 2px; }
     .moods .orb, .more .ring, .more .ring .orb { width: 54px; height: 54px; }
-    .moods .label { font-size: 0.56rem; }
+    .moods .label { font-size: 0.68rem; }
   }
   @media (max-width: 480px) {
     .mark h1 { font-size: 1.25rem; }
@@ -406,6 +403,15 @@
   .tools .btn { opacity: 0.7; }
   .tools .btn:hover, .tools .btn:focus-visible { opacity: 1; }
 
+  /* In the game: Back before the title, "How are you feeling?" under it, Delete and Refresh stacked */
+  .title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #hint { font-size: 1rem; color: var(--ink); }
+  .actions { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+  .actions .btn { text-align: left; }
+  /* Gradient / Solid colour switch: little swatches show which is which */
+  .ico.grad { border-radius: 4px; background: linear-gradient(90deg, var(--accent), #fff); box-shadow: inset 0 0 0 1px var(--line); }
+  .ico.flat { border-radius: 4px; background: var(--accent); }
+
   /* v7: Balls / Sand switch, and the cat that follows the pointer in sand mode */
   .tool {
     display: flex;
@@ -480,8 +486,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../config.js"></script>
-<script src="engine.js?v=2026-11-02d"></script>
-<script src="cubbies.js?v=2026-11-02d"></script>
+<script src="engine.js?v=2026-11-02e"></script>
+<script src="cubbies.js?v=2026-11-02e"></script>
 </head>
 <body data-mode="play" data-tool="balls">
 
@@ -515,21 +521,26 @@
       </div>
     </form>
     <p class="msg" id="startMsg" role="status"></p>
-    <span class="build" title="Version of this page">v7 · build 2026-11-02d</span>
+    <span class="build" title="Version of this page">v7 · build 2026-11-02e</span>
   </div>
 </section>
 
 <div class="app" id="app" hidden>
   <header class="top">
     <div class="mark">
-      <h1>Sand Emotions <span class="beta" id="badge">my cubby</span></h1>
-      <p id="hint"></p>
+      <div class="title-row">
+        <button class="btn" id="leave" type="button">← Back</button>
+        <h1>Sand Emotions <span class="beta" id="badge">My cubby</span></h1>
+      </div>
+      <p id="hint">How are you feeling?</p>
       <p class="notice" id="notice" hidden></p>
     </div>
     <div class="tools">
       <span class="status" id="status"><span class="dot"></span><span id="statusText">Connecting…</span></span>
-      <button class="btn" id="delete" type="button">Delete my cubby</button>
-      <button class="btn" id="fresh" type="button" hidden>Start fresh</button>
+      <div class="actions">
+        <button class="btn" id="delete" type="button"><span aria-hidden="true">🗑️</span> Delete my cubby</button>
+        <button class="btn" id="refresh" type="button"><span aria-hidden="true">🔄</span> Refresh</button>
+      </div>
     </div>
   </header>
 
@@ -544,9 +555,13 @@
       <button class="tool-btn" id="toolBalls" type="button" aria-pressed="true"><span class="ico ball" aria-hidden="true"></span>Balls</button>
       <button class="tool-btn" id="toolSand" type="button" aria-pressed="false"><span class="ico sand" aria-hidden="true"></span>Sand</button>
     </div>
+    <div class="tool" role="group" aria-label="Sand color">
+      <button class="tool-btn" id="colorGradient" type="button" aria-pressed="true"><span class="ico grad" aria-hidden="true"></span>Gradient color</button>
+      <button class="tool-btn" id="colorSolid" type="button" aria-pressed="false"><span class="ico flat" aria-hidden="true"></span>Solid color</button>
+    </div>
     <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
     <span class="count" id="count">0 memories</span>
-    <span class="build" title="Version of this page">v7 · build 2026-11-02d</span>
+    <span class="build" title="Version of this page">v7 · build 2026-11-02e</span>
   </div>
 </div>
 
@@ -585,7 +600,9 @@
   let cubby = null;              // the open cubby's id (a hash of the username)
   let stopFollow = null, stopWatch = null, saver = null;
   let ready = false, canPour = false, deleting = false;
-  let colab = false, colabStart = null;   // in the class colab cubby, and when its current picture began
+  let colab = false;             // in the class colab cubby (else the student's own)
+  let picStart = null;           // when the cubby's current picture began (its `made`); null while it is being refreshed
+  let solid = false;             // sand colour: false = gradient (light to deep shades), true = the cat's one solid colour
   let tool = 'balls';            // 'balls': drop cat marbles (and pop them); 'sand': hold to pour the cat's sand
 
   // ---- start: new or returning ----
@@ -669,48 +686,77 @@
     }
   });
 
-  // ---- inside a cubby ----
-  // There's no way back to the start except refreshing the page.
+  // ---- inside a cubby (own or colab) ----
+  // Back (or refreshing the page) returns to the start. Refresh clears the picture on every screen:
+  // the cubby is made again, and its new `made` time is where the new picture starts.
   function showApp() {
     $('start').hidden = true;
     $('app').hidden = false;
-    $('badge').textContent = colab ? 'class colab' : 'my cubby';
-    $('hint').hidden = true;   // no instructions line under the title, in either mode
+    $('badge').textContent = colab ? 'Class colab' : 'My cubby';
     $('delete').hidden = colab;
-    $('fresh').hidden = !colab;
   }
-  function openCubby(id, note) {
+  function openCubby(id, note) { enterCubby(id, false, note); }
+  function openColab() { enterCubby(C.COLAB_ID, true, ''); }
+  function enterCubby(id, isColab, note) {
     cubby = id;
-    colab = false;
-    ready = false; canPour = false; deleting = false;
+    colab = isColab;
+    deleting = false;
+    picStart = null;
     world.resetLog();
     showApp();
     showNotice(note || '');
-    $('emptyText').textContent = 'Opening your cubby…';
+    $('emptyText').textContent = colab ? 'Opening the class colab…' : 'Opening your cubby…';
     fit();
+    stopWatch = colab ? C.watchColab(db, startPicture, true) : watchOwn(id);
+    if (colab) setPresence();
+    renderStatus();
+  }
+  // An own cubby: follow each new picture; if it's deleted (and not made again straight away by a
+  // refresh), back to the start.
+  function watchOwn(id) {
+    const ref = db.ref('cubbies/' + id);
+    let seen = null, gone = 0;
+    const cb = s => {
+      const made = s.exists() ? Number((s.val() || {}).made) || 1 : null;
+      if (made !== null) {
+        clearTimeout(gone);
+        if (made !== seen) { seen = made; startPicture(made); }
+        return;
+      }
+      if (seen === null) return;
+      if (deleting) { leave('Your cubby is deleted.'); return; }
+      seen = null;
+      startPicture(null);
+      gone = setTimeout(() => leave('This cubby was deleted.'), 2500);
+    };
+    ref.on('value', cb, () => {});
+    return () => { clearTimeout(gone); ref.off('value', cb); };
+  }
+  function startPicture(made) {
+    if (stopFollow) stopFollow();
+    stopFollow = saver = null;
+    endStrokes();
+    world.resetLog();
+    world.popping.clear();
+    ready = false; canPour = false;
+    picStart = made;
+    if (!made) { $('emptyText').textContent = 'Refreshing…'; return; }
+    const id = cubby;
     stopFollow = C.follow(db, id, world, () => {
       ready = true;
       canPour = true;
       saver = C.makeSaver(db, id, world);
       $('emptyText').textContent = emptyHint();
-    }, () => showNotice('Could not read your cubby. Check the database rules in the setup guide.'));
-    // deleted here, on another screen or by the teacher: back to the start
-    let seenIt = false;
-    const ref = db.ref('cubbies/' + id);
-    const onValue = s => {
-      if (s.exists()) { seenIt = true; return; }
-      if (seenIt) closeCubby(deleting ? 'Your cubby is deleted.' : 'This cubby was deleted.');
-    };
-    ref.on('value', onValue, () => {});
-    stopWatch = () => ref.off('value', onValue);
-    renderStatus();
+    }, () => showNotice('Could not read this cubby. Check the database rules in the setup guide.'), made);
   }
-  function closeCubby(message) {
+  function leave(message) {
     if (stopFollow) stopFollow();
     if (stopWatch) stopWatch();
     stopFollow = stopWatch = saver = null;
-    cubby = null; ready = false; canPour = false;
+    if (colab && db) db.ref('screens/' + session).remove().catch(() => {});
+    cubby = null; colab = false; picStart = null; ready = false; canPour = false;
     endStrokes();
+    hidePen();
     closeMore();
     $('confirm').hidden = true;
     world.resetLog();
@@ -720,36 +766,8 @@
     $('startMsg').className = 'msg ok';
     $('startMsg').textContent = message;
   }
+  $('leave').addEventListener('click', () => leave(''));
 
-  // ---- the class colab cubby: everyone in one picture, live ----
-  // Each time someone starts fresh, every screen clears and follows the new picture from its start.
-  function openColab() {
-    cubby = C.COLAB_ID;
-    colab = true;
-    showApp();
-    showNotice('');
-    fit();
-    stopWatch = C.watchColab(db, startColabPicture, true);
-    setPresence();
-    renderStatus();
-  }
-  function startColabPicture(made) {
-    if (stopFollow) stopFollow();
-    stopFollow = saver = null;
-    endStrokes();
-    world.resetLog();
-    world.popping.clear();
-    ready = false; canPour = false;
-    colabStart = made;
-    $('emptyText').textContent = made ? 'Opening the class colab…' : 'Starting fresh…';
-    if (!made) return;
-    stopFollow = C.follow(db, C.COLAB_ID, world, () => {
-      ready = true;
-      canPour = true;
-      saver = C.makeSaver(db, C.COLAB_ID, world);
-      $('emptyText').textContent = emptyHint();
-    }, () => showNotice('Could not read the class colab. Check the database rules in the setup guide.'), made);
-  }
   // Who's in the colab right now (the status pill counts them).
   let here = 0;
   function setPresence() {
@@ -759,22 +777,26 @@
     me.set({ mode: 'colab' }).catch(() => {});
   }
 
-  // ---- delete my cubby ----
-  function ask(title, text, yes) {
+  // ---- delete my cubby, refresh ----
+  let asking = null;             // 'delete' or 'refresh'
+  function ask(what, title, text, yes) {
+    asking = what;
     $('confirmTitle').textContent = title;
     $('confirmText').textContent = text;
     $('reallyDelete').textContent = yes;
     $('confirm').hidden = false;
     $('keep').focus();
   }
-  $('delete').addEventListener('click', () => ask('Delete your cubby?', 'Your sand art will be gone for good, and your username will stop working.', 'Delete it'));
-  $('fresh').addEventListener('click', () => ask('Start fresh for everyone?', 'The class colab picture clears on every screen, and everyone starts a new one together.', 'Start fresh'));
+  $('delete').addEventListener('click', () => ask('delete', 'Delete your cubby?', 'Your sand art will be gone for good, and your username will stop working.', 'Delete it'));
+  $('refresh').addEventListener('click', () => colab
+    ? ask('refresh', 'Refresh for everyone?', 'The class colab picture clears on every screen, and everyone starts a new one together.', 'Refresh')
+    : ask('refresh', 'Refresh your cubby?', 'Your sand art clears and you start a new picture. Your username keeps working.', 'Refresh'));
   $('keep').addEventListener('click', () => { $('confirm').hidden = true; });
   $('reallyDelete').addEventListener('click', () => {
     $('confirm').hidden = true;
     if (!cubby) return;
-    if (colab) {
-      C.clearColab(db).catch(() => showNotice('Could not start fresh. Check the database rules in the setup guide.'));
+    if (asking === 'refresh') {
+      C.refreshCubby(db, cubby).catch(() => showNotice('Could not refresh. Check the database rules in the setup guide.'));
       return;
     }
     deleting = true;
@@ -796,14 +818,20 @@
     document.body.dataset.tool = t;
     $('toolBalls').setAttribute('aria-pressed', t === 'balls' ? 'true' : 'false');
     $('toolSand').setAttribute('aria-pressed', t === 'sand' ? 'true' : 'false');
-    $('hint').innerHTML = t === 'sand'
-      ? 'Pick a cat, then hold anywhere to pour its sand.<span class="hint-wide"> Switch to Balls to drop cat memories.</span>'
-      : 'Pick a cat memory, then tap to drop it. Tap a memory to pop it into sand.<span class="hint-wide"> Tap More for extra cats.</span>';
     if (ready) $('emptyText').textContent = emptyHint();
     hidePen();
   }
   $('toolBalls').addEventListener('click', () => setTool('balls'));
   $('toolSand').addEventListener('click', () => setTool('sand'));
+  // Gradient or solid sand (for new pours and pops; sand already made keeps its colours). Gradient: a
+  // held pour starts at the cat's colour and turns whiter the longer it's held; press again for colour.
+  function setColor(isSolid) {
+    solid = isSolid;
+    $('colorGradient').setAttribute('aria-pressed', solid ? 'false' : 'true');
+    $('colorSolid').setAttribute('aria-pressed', solid ? 'true' : 'false');
+  }
+  $('colorGradient').addEventListener('click', () => setColor(false));
+  $('colorSolid').addEventListener('click', () => setColor(true));
 
   // ---- the cat that follows the pointer in sand mode ----
   const pen = $('pen');
@@ -827,15 +855,17 @@
     st.k = CW.nextKey();
     st.s = (Math.random() * 4294967296) >>> 0;
     st.c = mood;
+    st.solid = solid;
+    if (!lead) st.pressed = st.k;   // a new press: a gradient pour starts again at the cat's own colour
     st.lead = lead; st.pts = [];
     st.t0 = performance.now();
   }
   function closePour(st, cont) {
     if (st.pts.length) {
       const p = st.lead ? st.lead.concat(st.pts) : st.pts;
-      const ch = { i: st.i, k: st.k, c: st.c, r: BRUSH, s: st.s, l: st.lead ? 3 : 2, p };
-      world.addChunk(ch, false);
-      send(ch);
+      const ch = { i: st.i, k: st.k, c: st.c, r: BRUSH, s: st.s, l: (st.lead ? 3 : 2) | (st.solid ? CW.SOLID : 0), p };
+      if (!st.solid) ch.t = String(st.pressed);   // gradient: fades to white the longer this press lasts
+      add(ch);
     }
     if (cont) {
       const n = st.pts.length;
@@ -855,21 +885,24 @@
   // Sand stops, balls keep working.
   let sandBlocked = false;
   const SAND_RULES = 'Sand can\'t be saved yet. Teacher: in the Firebase rules, under "drops", change the "p" limit from 16 to 400.';
+  // Adds this screen's own drop. One stamped before the current picture began (this tablet's clock
+  // a touch behind the server's) is left out here too, as every other screen leaves it out.
+  function add(ch) {
+    if (!picStart || ch.k < picStart) return;
+    world.addChunk(ch, false);
+    send(ch);
+  }
   function send(ch) {
-    const sentIn = colabStart;
+    const sentIn = picStart;
     C.sendDrop(db, cubby, ch).catch(e => {
       if (deleting || !cubby) return;
-      if (colab) {
-        // refused because someone started fresh at that moment: nothing to worry about
-        setTimeout(() => { if (colab && colabStart === sentIn) refused(ch, e); }, 1500);
-        return;
-      }
-      refused(ch, e);
+      // refused because someone refreshed the cubby at that moment: nothing to worry about
+      setTimeout(() => { if (cubby && picStart === sentIn) refused(ch, e); }, 1500);
     });
   }
   function refused(ch, e) {
     if (!/permission/i.test((e && (e.code || e.message)) || '')) return;
-    if (ch.l >= 2) {
+    if ((ch.l & 7) >= 2) {
       sandBlocked = true;
       endStrokes();
       hidePen();
@@ -882,15 +915,13 @@
   }
   function dropAt(x, y) {
     const ch = { i: session + ':' + (seq++), k: CW.nextKey(), c: mood, r: R, s: (Math.random() * 4294967296) >>> 0, l: 0, p: [x, y] };
-    world.addChunk(ch, false);
-    send(ch);
+    add(ch);
   }
   function popAt(x, y, hit) {
     if (world.popping.has(hit.i)) return;
     world.popping.set(hit.i, performance.now());
-    const ch = { i: session + ':' + (seq++), k: CW.nextKey(), c: hit.c, r: R, s: (Math.random() * 4294967296) >>> 0, l: 1, p: [x, y], t: hit.i };
-    world.addChunk(ch, false);
-    send(ch);
+    const ch = { i: session + ':' + (seq++), k: CW.nextKey(), c: hit.c, r: R, s: (Math.random() * 4294967296) >>> 0, l: 1 | (solid ? CW.SOLID : 0), p: [x, y], t: hit.i };
+    add(ch);
   }
   // At most one drop or pop every 350 ms per screen, so fast tapping stays smooth.
   const ACTION_GAP = 350;
@@ -982,7 +1013,7 @@
     const h = document.createElement('p');
     h.className = 'group';
     h.style.setProperty('--c', g.hex);
-    h.innerHTML = '<span class="swatch"></span><b>' + g.title + '</b> ' + g.note;
+    h.innerHTML = '<span class="swatch"></span><b>' + g.title + '</b>';
     $('moreList').appendChild(h);
     g.ids.forEach(i => makeMoodButton(i, $('moreList'), 0));
   });

@@ -20,6 +20,9 @@
   const SAND_HORIZON = 100;
   const SAND_BAND_MS = 6000;     // a held pour drifts through the cat's light-to-deep shades this often
   const MAX_PATH = 80;           // numbers in one pour's path (40 points)
+  const SOLID = 8;               // added to a pop's or pour's `l`: flat-coloured sand
+  const FADE_MS = 4000;          // gradient pours: the cat's colour fades to white over this much holding
+  const kindOf = ch => ch.l & 7; // 0 drop, 1 pop, 2 pour, 3 pour continued
 
   // Cat pictures sit in images/ at the top of the site, next to this folder.
   const IMG = new URL('../images/', document.currentScript.src).href;
@@ -80,6 +83,14 @@
       mid: rgb,
       deep: rgb.map((v, i) => v + ([30, 16, 52][i] - v) * 0.4),        // cool, deep shade
     };
+  }
+  // Solid colour mode: every grain the cat's own colour.
+  const solidColour = rgb => ((255 << 24) | (rgb[2] << 16) | (rgb[1] << 8) | rgb[0]) >>> 0;
+  // Gradient pours: the cat's colour mixed toward white by f (0 = the colour, 1 and over = white).
+  function fadeColour(rgb, f) {
+    const u = f < 0 ? 0 : f > 1 ? 1 : f;
+    const r = (rgb[0] + (255 - rgb[0]) * u) | 0, g = (rgb[1] + (255 - rgb[1]) * u) | 0, b = (rgb[2] + (255 - rgb[2]) * u) | 0;
+    return ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;
   }
   const tri = x => { const f = x - Math.floor(x); return f < 0.5 ? f * 2 : 2 - f * 2; };   // 0..1..0 wave
   function grainColour(pal, t, s) {
@@ -184,15 +195,19 @@
     if (!Number.isInteger(r) || r < 1 || r > 20) return null;
     if (!Number.isInteger(s) || s < 0 || s > 4294967295) return null;
     // l: 0 drop a marble, 1 pop, 2 pour sand along a path, 3 the same but continuing a pour
-    // (its first point is where the previous stretch ended, and gets no sand of its own)
-    if (l !== 0 && l !== 1 && l !== 2 && l !== 3) return null;
-    if (!Array.isArray(p) || p.length % 2 || p.length < (l === 3 ? 4 : 2) || p.length > (l >= 2 ? MAX_PATH : 2)) return null;
+    // (its first point is where the previous stretch ended, and gets no sand of its own).
+    // + SOLID (8) on a pop or pour: its sand is the cat's one flat colour instead of a gradient.
+    if (l !== 0 && l !== 1 && l !== 2 && l !== 3 && l !== (1 | SOLID) && l !== (2 | SOLID) && l !== (3 | SOLID)) return null;
+    const kind = l & 7;
+    if (!Array.isArray(p) || p.length % 2 || p.length < (kind === 3 ? 4 : 2) || p.length > (kind >= 2 ? MAX_PATH : 2)) return null;
     for (let j = 0; j < p.length; j += 2) {
       const x = p[j], y = p[j + 1];
       if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= GW || y < 0 || y >= GH) return null;
     }
     const out = { i, k, c: col, r, s, l, p: p.slice() };
-    if (l === 1 && typeof t === 'string' && t.length <= 120) out.t = t;
+    if (kind === 1 && typeof t === 'string' && t.length <= 120) out.t = t;
+    // a gradient pour carries when its press began (t), so its fade to white is the same everywhere
+    if (kind >= 2 && typeof t === 'string' && /^\d{1,15}$/.test(t)) out.t = t;
     return out;
   }
 
@@ -927,12 +942,15 @@
 
     // Drops one marble and plays out everything it sets off. `tl` records the motion for animation.
     // Sand mode: pours grains along the finger's path, like the first Sandfall (about r*r*0.7
-    // grains per step, steps one brush apart). The colour drifts slowly through the cat's light,
-    // middle and deep shades, so a long pour builds up bands. Marbles aren't moved.
+    // grains per step, steps one brush apart). Colour: solid pours are the cat's own colour; gradient
+    // pours (they carry their press's start time in t) start at the cat's colour and fade to white
+    // over FADE_MS of holding, then stay white. Older pours without t drift through light, middle
+    // and deep bands. Marbles aren't moved.
     function pourSand(ch, tl) {
       const rand = rng32(ch.s);
       const pal = sandPalette(hexRgb(MOODS[ch.c].hex));
-      const t = tri(ch.k / SAND_BAND_MS);
+      const t = tri(ch.k / SAND_BAND_MS), flat = ch.l & SOLID ? solidColour(pal.mid) : 0;
+      const pressed = ch.t !== undefined ? Number(ch.t) : null;
       const r = ch.r, n = Math.max(2, Math.round(r * r * 0.7));
       const grains = tl ? [] : null, delay = tl ? [] : null;
       let frame = 0;                         // which frame of the stretch this spot was touched in
@@ -943,14 +961,14 @@
           if (dx * dx + dy * dy > r * r) continue;
           const gx = Math.round(cx + dx), gy = Math.round(cy + dy);
           if (!openCell(gx, gy)) continue;     // inside a marble or the pile: no sand there
-          const col = grainColour(pal, t, sp);
+          const col = flat || (pressed !== null ? fadeColour(pal.mid, (ch.k - pressed + frame * STEP_MS) / FADE_MS) : grainColour(pal, t, sp));
           const idx = pourGrain(gx, gy, col, rand);
           if (grains) { grains.push(gx, gy, idx % SW, (idx - idx % SW) / SW, col); delay.push(frame); }
         }
       };
       const p = ch.p;
       let px = null, py = null, j = 0;
-      if (ch.l === 3) { px = p[0]; py = p[1]; j = 2; }
+      if (kindOf(ch) === 3) { px = p[0]; py = p[1]; j = 2; }
       for (; j < p.length; j += 2) {
         const x = p[j], y = p[j + 1];
         if (px === null) at(x, y);
@@ -1017,6 +1035,7 @@
       const want = Math.max(8, Math.round(0.5 * 3.14159 * target.r * target.r / (CELL * CELL)));
       const spread = target.r * 1.2;
       const pal = sandPalette(hexRgb(MOODS[target.c].hex));
+      const flat = ch.l & SOLID ? solidColour(pal.mid) : 0;
       const phase = rand(), bands = 2.5 + rand() * 2, tilt = (rand() - 0.5) * 1.2;   // each pop's own stripes
       const spots = [];
       for (let tries = 0; spots.length < want && tries < want * 8; tries++) {
@@ -1030,7 +1049,7 @@
       const grains = tl ? [] : null;
       for (const [gx, gy, s, t] of spots) {
         if (!openCell(gx, gy)) continue;     // that spot is solid: no sand appears inside sealed space
-        const col = grainColour(pal, t, s);
+        const col = flat || grainColour(pal, t, s);
         const idx = pourGrain(gx, gy, col, rand);
         if (grains) grains.push(gx, gy, idx % SW, (idx - idx % SW) / SW, col);
       }
@@ -1074,7 +1093,7 @@
     let worldVersion = 0;           // bumps whenever marbles or sand change, so the drawing can be reused until then
     function commit(frameStart) {
       const now = logicalNow();
-      while (committed < chunks.length && chunks[committed].k <= now - (chunks[committed].l >= 2 ? SAND_HORIZON : HORIZON)) {
+      while (committed < chunks.length && chunks[committed].k <= now - (kindOf(chunks[committed]) >= 2 ? SAND_HORIZON : HORIZON)) {
         const ch = chunks[committed];
         const replay = everCommitted.has(ch.i);  // re-doing it after a late arrival: finish now so nothing flickers
         // new events wait for the next frame once this one has done 8 ms of work (even a big catch-up)
@@ -1083,8 +1102,9 @@
         worldVersion++;
         everCommitted.add(ch.i);
         const tl = fresh ? makeTimeline() : null;
-        if (ch.l === 1) pop(ch, tl); else if (ch.l >= 2) pourSand(ch, tl); else place(ch, tl);
-        if (ch.l === 0 || ch.l === 2) uses[ch.c]++;
+        const kind = kindOf(ch);
+        if (kind === 1) pop(ch, tl); else if (kind >= 2) pourSand(ch, tl); else place(ch, tl);
+        if (kind === 0 || kind === 2) uses[ch.c]++;
         if (tl) {
           const anim = tl.finish(new Set(balls.map(b => b.i)));
           anim.t0 = performance.now();
@@ -1337,7 +1357,7 @@
 
   window.CatWorld = {
     GW, GH, R, REPEAT_MS, MOODS, PICKER, MORE_GROUPS,
-    createWorld, valid, nextKey, paintMarble, now: logicalNow,
+    createWorld, valid, nextKey, paintMarble, now: logicalNow, SOLID,
     canPack, packState, unpackState,
     setClockOffset(ms) { clockOffset = ms; },
     onImages(f) { imageListeners.push(f); },

@@ -22,14 +22,14 @@
   const colab = (() => {
     const el = document.createElement(admin ? 'button' : 'div');
     el.className = 'tile';
-    if (admin) { el.type = 'button'; el.dataset.act = 'Start fresh'; el.addEventListener('click', () => ask(C.COLAB_ID)); }
+    if (admin) { el.type = 'button'; el.dataset.act = 'Refresh'; el.addEventListener('click', () => ask(C.COLAB_ID)); }
     const canvas = document.createElement('canvas');
     canvas.className = 'art';
     el.appendChild(canvas);
     $('colabTile').appendChild(el);
     return { id: C.COLAB_ID, el, world: CW.createWorld({ canvas, checkpoints: 2 }), stop: null };
   })();
-  // Each time someone starts the colab fresh, it clears here too and follows the new picture.
+  // Each time someone refreshes the colab, it clears here too and follows the new picture.
   function followColab(made) {
     if (colab.stop) colab.stop();
     colab.stop = null;
@@ -38,8 +38,18 @@
   }
 
   // ---- student cubbies ----
+  // A refreshed cubby is deleted and made again at once: its tile keeps its place and starts over.
   function addTile(id, made) {
-    if (id === C.COLAB_ID || tiles.has(id)) return;
+    if (id === C.COLAB_ID) return;
+    const old = tiles.get(id);
+    if (old) {
+      clearTimeout(old.going);
+      old.going = 0;
+      old.stop();
+      old.world.resetLog();
+      old.stop = C.follow(db, id, old.world, null, () => {}, Number(made) || 0);
+      return;
+    }
     const el = document.createElement(admin ? 'button' : 'div');
     el.className = 'tile';
     if (admin) { el.type = 'button'; el.dataset.act = 'Remove'; el.addEventListener('click', () => ask(id)); }
@@ -47,7 +57,7 @@
     canvas.className = 'art';
     el.appendChild(canvas);
     const t = { id, made: Number(made) || 0, el, world: CW.createWorld({ canvas, checkpoints: 2 }) };
-    t.stop = C.follow(db, id, t.world, null, () => {});
+    t.stop = C.follow(db, id, t.world, null, () => {}, t.made);
     tiles.set(id, t);
     // oldest cubbies first
     const after = [...tiles.values()].filter(o => o !== t && (o.made > t.made || (o.made === t.made && o.id > t.id)))
@@ -56,6 +66,11 @@
     layout();
   }
   function removeTile(id) {
+    const t = tiles.get(id);
+    if (!t || t.going) return;
+    t.going = setTimeout(() => dropTile(id), 2500);   // unless it comes straight back (a refresh)
+  }
+  function dropTile(id) {
     const t = tiles.get(id);
     if (!t) return;
     t.stop();
@@ -230,9 +245,9 @@
     const n = t.world.memories();
     const count = n.toLocaleString() + (n === 1 ? ' memory.' : ' memories.');
     if (isColab) {
-      $('askTitle').textContent = 'Start the class colab fresh?';
+      $('askTitle').textContent = 'Refresh the class colab?';
       $('askText').textContent = 'The colab picture clears on every screen, and the class starts a new one together. ' + count;
-      $('remove').textContent = 'Start fresh';
+      $('remove').textContent = 'Refresh';
     } else {
       const when = t.made ? new Date(t.made).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
       $('askTitle').textContent = 'Remove this cubby?';
