@@ -360,9 +360,6 @@
     user-select: text;
   }
   .card h1 { margin: 0; font: 700 2rem/1.1 var(--font-display); letter-spacing: -0.02em; }
-  .card .lede { margin: -8px 0 0; color: var(--muted); font-size: 1rem; }
-  .orbs { display: flex; gap: 6px; }
-  .orbs canvas { width: 44px; height: 44px; border-radius: 50%; }
   .q { margin: 0; font: 600 1.1rem var(--font-display); }
   .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .choice {
@@ -381,6 +378,7 @@
     cursor: pointer;
   }
   .choice span { font: 400 0.85rem var(--font-body); color: var(--muted); }
+  .choice.short { min-height: 64px; justify-content: center; }
   .choice:hover { border-color: var(--muted); }
   .choice:focus-visible, .field:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   #nameForm { display: flex; flex-direction: column; gap: 10px; }
@@ -482,8 +480,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../config.js"></script>
-<script src="engine.js?v=2026-10-28c"></script>
-<script src="cubbies.js?v=2026-10-28c"></script>
+<script src="engine.js?v=2026-11-02a"></script>
+<script src="cubbies.js?v=2026-11-02a"></script>
 </head>
 <body data-mode="play" data-tool="balls">
 
@@ -491,26 +489,23 @@
      Refreshing the page always comes back here. -->
 <section class="start" id="start">
   <div class="card">
-    <div class="orbs" id="startOrbs" aria-hidden="true"></div>
-    <h1>Cat Emotions</h1>
-    <p class="lede">Make sand art from your feelings, in your own cubby or together with your class.</p>
+    <h1>Sand Game</h1>
     <div id="pickMode">
       <p class="q">How do you want to play?</p>
       <div class="choices" style="margin-top: 12px">
-        <button class="choice" id="soloMode" type="button">My own cubby<span>Only you can change it</span></button>
-        <button class="choice" id="colabMode" type="button">Class colab<span>Everyone makes one picture together</span></button>
+        <button class="choice short" id="soloMode" type="button">My own cubby</button>
+        <button class="choice short" id="colabMode" type="button">Class colab</button>
       </div>
     </div>
     <div id="choose" hidden>
-      <p class="q">Have you made a cubby before?</p>
-      <div class="choices" style="margin-top: 12px">
-        <button class="choice" id="newUser" type="button">I'm new<span>Make up a username</span></button>
-        <button class="choice" id="oldUser" type="button">I've been here before<span>Type your username</span></button>
+      <div class="choices">
+        <button class="choice" id="newUser" type="button">I'm new<span>Create a new username</span></button>
+        <button class="choice" id="oldUser" type="button">I've been here before<span>Enter your username</span></button>
       </div>
       <div class="row" style="margin-top: 12px"><button class="btn big" id="backToModes" type="button">Back</button></div>
     </div>
     <form id="nameForm" hidden novalidate>
-      <label for="name" id="nameLabel">Make up a username</label>
+      <label for="name" id="nameLabel">Create a new username</label>
       <p class="help" id="nameHelp"></p>
       <input class="field" id="name" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="go">
       <p class="msg" id="nameMsg" role="alert"></p>
@@ -520,7 +515,7 @@
       </div>
     </form>
     <p class="msg" id="startMsg" role="status"></p>
-    <span class="build" title="Version of this page">v7 · build 2026-10-28c</span>
+    <span class="build" title="Version of this page">v7 · build 2026-11-02a</span>
   </div>
 </section>
 
@@ -551,7 +546,7 @@
     </div>
     <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
     <span class="count" id="count">0 memories</span>
-    <span class="build" title="Version of this page">v7 · build 2026-10-28c</span>
+    <span class="build" title="Version of this page">v7 · build 2026-11-02a</span>
   </div>
 </div>
 
@@ -610,10 +605,9 @@
     returning = isReturning;
     $('choose').hidden = true;
     $('nameForm').hidden = false;
-    $('nameLabel').textContent = returning ? 'Type your username' : 'Make up a username';
-    $('nameHelp').textContent = returning
-      ? 'The one you used before. Capitals and spaces don\'t matter.'
-      : 'It\'s the key to your cubby, so pick one you\'ll remember and keep it to yourself.';
+    $('nameLabel').textContent = returning ? 'Enter your username' : 'Create a new username';
+    $('nameHelp').textContent = returning ? '' : 'Remember your username, it\'s the key to your cubby';
+    $('nameHelp').hidden = returning;
     $('nameMsg').textContent = '';
     $('startMsg').textContent = '';
     $('name').value = '';
@@ -681,6 +675,7 @@
     $('start').hidden = true;
     $('app').hidden = false;
     $('badge').textContent = colab ? 'class colab' : 'my cubby';
+    $('hint').hidden = !colab;
     $('delete').hidden = colab;
     $('fresh').hidden = !colab;
   }
@@ -991,13 +986,6 @@
     $('moreList').appendChild(h);
     g.ids.forEach(i => makeMoodButton(i, $('moreList'), 0));
   });
-  // a few cats on the start card
-  const startOrbs = PICKER.map(i => {
-    const c = document.createElement('canvas');
-    c.width = c.height = 88;
-    $('startOrbs').appendChild(c);
-    return [c, i];
-  });
 
   function drawMarbleOn(c, i) {
     const g = c.getContext('2d');
@@ -1008,7 +996,6 @@
   }
   function drawPicker() {
     moodButtons.forEach(btn => drawMarbleOn(btn.querySelector('canvas'), Number(btn.dataset.mood)));
-    startOrbs.forEach(([c, i]) => drawMarbleOn(c, i));
     renderMore();
     drawPen();
   }
