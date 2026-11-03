@@ -990,14 +990,15 @@
 
     // The rake smears colour like paint. Its head is a thin bar across the stroke with tines (2 grains
     // wide, 2 apart), and each tine works like a brush: it loads up with the colour it first touches,
-    // paints most of that colour onto every grain it passes over, and slowly picks up the colours it
-    // crosses. So each tine leaves a clean line in any direction, dragging colour along and blending
-    // where colours meet; the gaps between tines are left alone, so the lines have crisp edges. Grains
+    // paints much of that colour onto every grain it passes over, and picks up the colours it crosses.
+    // So each tine leaves a line in any direction, dragging colour along and blending where colours
+    // meet; the gaps between tines get a light smear, so the lines soften at their edges. Grains
     // don't move (the pile keeps its shape), and nothing is random. Each 100 ms stretch starts its
     // brushes from the sand under them, which already carries the smear, so lines run on unbroken.
     const TINE = 4, TINE_W = 2, RAKE_DEPTH = 1.5;
-    const TINE_DRAG = 0.85;          // how much of the brush's colour a grain takes
-    const PICKUP = 0.012;            // how much of each grain's colour the brush picks up
+    const TINE_DRAG = 0.6;           // how much of the brush's colour a grain under a tine takes
+    const GAP_DRAG = 0.15;           // ... and a grain between tines (a light smear, so lines soften at their edges)
+    const PICKUP = 0.03;             // how much of each grain's colour the brush picks up
     const SWITCH = 24;               // grains of another cat in a row before the brush counts as that cat
     function rakeSand(ch) {
       if (!sandCount) return;
@@ -1040,12 +1041,12 @@
         const dx = gx + 0.5 - cx, dy = gy + 0.5 - cy;
         const along = dx * ux + dy * uy, side = dx * -uy + dy * ux + r;   // side: 0 to 2r across the rake
         if (along < -RAKE_DEPTH || along > RAKE_DEPTH || side < 0 || side > 2 * r) continue;
-        const lane = Math.floor(side / TINE);
-        if (side - lane * TINE >= TINE_W) continue;                       // between tines: untouched
+        const lane = Math.floor(side / TINE), gap = side - lane * TINE >= TINE_W;
         const i = gy * SW + gx, c = sand[i];
         if (!c) continue;
         const L = loads[lane];
-        if (!L) { loads[lane] = { c, o: own[i], other: 0 }; continue; }   // the brush loads up here
+        if (!L) { if (!gap) loads[lane] = { c, o: own[i], other: 0 }; continue; }   // the brush loads up here
+        if (gap) { sand[i] = mixColour(c, L.c, GAP_DRAG); continue; }   // between tines: a light smear only
         sand[i] = mixColour(c, L.c, TINE_DRAG);
         const o = own[i];
         own[i] = L.o;
