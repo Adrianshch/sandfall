@@ -988,51 +988,69 @@
       if (tl) tl.sand(grains, delay);
     }
 
-    // The rake smears colour like paint: as it moves, each grain under it takes on part of the colour
-    // of the grain just behind it, so colour is dragged along the stroke in smooth streaks, and where
-    // colours meet they blend. Its tines (every third line across the rake) drag hard, the gaps
-    // between them a little, so a stroke leaves parallel lines. Grains don't move (the pile keeps its
-    // shape), and nothing is random. A grain mostly taken over gets the dragged grain's cat too.
-    const TINE = 3, TINE_DRAG = 0.6, GAP_DRAG = 0.15;
+    // The rake smears colour like paint. Its head is a thin bar across the stroke with tines (2 grains
+    // wide, 2 apart), and each tine works like a brush: it loads up with the colour it first touches,
+    // paints most of that colour onto every grain it passes over, and slowly picks up the colours it
+    // crosses. So each tine leaves a clean line in any direction, dragging colour along and blending
+    // where colours meet; the gaps between tines are left alone, so the lines have crisp edges. Grains
+    // don't move (the pile keeps its shape), and nothing is random. Each 100 ms stretch starts its
+    // brushes from the sand under them, which already carries the smear, so lines run on unbroken.
+    const TINE = 4, TINE_W = 2, RAKE_DEPTH = 1.5;
+    const TINE_DRAG = 0.85;          // how much of the brush's colour a grain takes
+    const PICKUP = 0.012;            // how much of each grain's colour the brush picks up
+    const SWITCH = 24;               // grains of another cat in a row before the brush counts as that cat
     function rakeSand(ch) {
       if (!sandCount) return;
-      const p = ch.p;
+      const p = ch.p, loads = [];
       let px = p[0], py = p[1];
+      // each brush starts loaded with the colour just behind its tine: on a continuing stretch that is
+      // the line it has just painted, so the line carries on without a seam
+      for (let j = 2; j < p.length; j += 2) {
+        const dx = p[j] - px, dy = p[j + 1] - py, d = Math.sqrt(dx * dx + dy * dy);
+        if (!d) continue;
+        const ux = dx / d, uy = dy / d;
+        for (let lane = 0; lane * TINE <= 2 * RAKE_R; lane++) {
+          const off = lane * TINE + TINE_W / 2 - RAKE_R;
+          const gx = Math.floor(px - uy * off - ux * (RAKE_DEPTH + 1)), gy = Math.floor(py + ux * off - uy * (RAKE_DEPTH + 1));
+          if (gx < 0 || gx >= SW || gy < 0 || gy >= SH) continue;
+          const i = gy * SW + gx;
+          if (sand[i]) loads[lane] = { c: sand[i], o: own[i], other: 0 };
+        }
+        break;
+      }
       for (let j = 2; j < p.length; j += 2) {
         const x = p[j], y = p[j + 1], dx = x - px, dy = y - py, d = Math.sqrt(dx * dx + dy * dy);
         if (d) {
           const ux = dx / d, uy = dy / d, steps = Math.ceil(d);
-          for (let k = 1; k <= steps; k++) rakeAt(px + dx * k / steps, py + dy * k / steps, ux, uy);
+          for (let k = 1; k <= steps; k++) rakeAt(px + dx * k / steps, py + dy * k / steps, ux, uy, loads);
         }
         px = x; py = y;
       }
     }
-    function rakeAt(cx, cy, ux, uy) {
-      const r = RAKE_R;
-      const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(SW - 1, Math.floor(cx + r));
-      const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(SH - 1, Math.floor(cy + r));
-      // the grains furthest ahead go first, so each takes colour from a grain not yet smeared this step
-      const fx = ux > 0, fy = uy > 0;
-      for (let a = 0; a <= y1 - y0; a++) {
-        const gy = fy ? y1 - a : y0 + a;
-        for (let b = 0; b <= x1 - x0; b++) {
-          const gx = fx ? x1 - b : x0 + b;
-          const dx = gx + 0.5 - cx, dy = gy + 0.5 - cy;
-          if (dx * dx + dy * dy > r * r) continue;
-          const i = gy * SW + gx;
-          if (!sand[i]) continue;
-          const bx = Math.round(gx - ux), by = Math.round(gy - uy);
-          if (bx < 0 || bx >= SW || by < 0 || by >= SH) continue;
-          const q = by * SW + bx;
-          if (q === i || !sand[q]) continue;
-          const side = dx * -uy + dy * ux + r;          // position across the rake, 0 to 2r
-          const w = side - Math.floor(side / TINE) * TINE < 1 ? TINE_DRAG : GAP_DRAG;
-          const c = sand[i], e = sand[q];
-          const cr = c & 255, cg = (c >> 8) & 255, cb = (c >> 16) & 255;
-          const nr = (cr + ((e & 255) - cr) * w) | 0, ng = (cg + (((e >> 8) & 255) - cg) * w) | 0, nb = (cb + (((e >> 16) & 255) - cb) * w) | 0;
-          sand[i] = ((255 << 24) | (nb << 16) | (ng << 8) | nr) >>> 0;
-          if (w >= 0.5) own[i] = own[q];
-        }
+    const mixColour = (c, e, w) => {
+      const cr = c & 255, cg = (c >> 8) & 255, cb = (c >> 16) & 255;
+      const r = (cr + ((e & 255) - cr) * w) | 0, g = (cg + (((e >> 8) & 255) - cg) * w) | 0, b = (cb + (((e >> 16) & 255) - cb) * w) | 0;
+      return ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;
+    };
+    function rakeAt(cx, cy, ux, uy, loads) {
+      const r = RAKE_R, reach = r + RAKE_DEPTH;
+      const x0 = Math.max(0, Math.floor(cx - reach)), x1 = Math.min(SW - 1, Math.floor(cx + reach));
+      const y0 = Math.max(0, Math.floor(cy - reach)), y1 = Math.min(SH - 1, Math.floor(cy + reach));
+      for (let gy = y0; gy <= y1; gy++) for (let gx = x0; gx <= x1; gx++) {
+        const dx = gx + 0.5 - cx, dy = gy + 0.5 - cy;
+        const along = dx * ux + dy * uy, side = dx * -uy + dy * ux + r;   // side: 0 to 2r across the rake
+        if (along < -RAKE_DEPTH || along > RAKE_DEPTH || side < 0 || side > 2 * r) continue;
+        const lane = Math.floor(side / TINE);
+        if (side - lane * TINE >= TINE_W) continue;                       // between tines: untouched
+        const i = gy * SW + gx, c = sand[i];
+        if (!c) continue;
+        const L = loads[lane];
+        if (!L) { loads[lane] = { c, o: own[i], other: 0 }; continue; }   // the brush loads up here
+        sand[i] = mixColour(c, L.c, TINE_DRAG);
+        const o = own[i];
+        own[i] = L.o;
+        L.c = mixColour(L.c, c, PICKUP);
+        if (o && o !== L.o) { if (++L.other >= SWITCH) { L.o = o; L.other = 0; } } else L.other = 0;
       }
     }
 
