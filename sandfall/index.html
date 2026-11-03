@@ -476,6 +476,51 @@
     translate: -50% -50%;
   }
   .rake-ring.raking { border-style: solid; }
+  /* rake sizes: a little pop-up above the Rake button, one circle per size */
+  .tool { position: relative; }
+  .size-pop {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 16px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+  .size-btn {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    cursor: pointer;
+  }
+  .size-btn span { display: block; border-radius: 50%; background: var(--muted); }
+  .size-btn[aria-pressed="true"] { background: var(--box); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14); }
+  .size-btn[aria-pressed="true"] span { background: var(--ink); }
+  .size-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* a short message over the sand box, e.g. when the rake is used on empty air */
+  .toast {
+    position: absolute;
+    left: 50%;
+    top: 14px;
+    z-index: 4;
+    translate: -50% 0;
+    pointer-events: none;
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--bg);
+    font: 700 1rem var(--font-body);
+    box-shadow: var(--shadow);
+  }
   /* hover names: which emotion the sand or ball under the pointer is */
   .hover-name {
     position: absolute;
@@ -496,7 +541,7 @@
     white-space: nowrap;
     translate: 14px -130%;
   }
-  .hover-name .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+  .hover-name .face { width: 26px; height: 26px; border-radius: 50%; margin-left: -6px; }
   @media (max-width: 760px) {
     .tool { flex-direction: row; width: 100%; }
     .tool-btn { flex: 1; justify-content: center; }
@@ -526,8 +571,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../config.js"></script>
-<script src="engine.js?v=2026-11-03b"></script>
-<script src="cubbies.js?v=2026-11-03b"></script>
+<script src="engine.js?v=2026-11-03d"></script>
+<script src="cubbies.js?v=2026-11-03d"></script>
 </head>
 <body data-mode="play" data-tool="balls">
 
@@ -561,7 +606,7 @@
       </div>
     </form>
     <p class="msg" id="startMsg" role="status"></p>
-    <span class="build" title="Version of this page">v7 · build 2026-11-03b</span>
+    <span class="build" title="Version of this page">v8 · build 2026-11-03d</span>
   </div>
 </section>
 
@@ -588,7 +633,8 @@
     <canvas id="world"></canvas>
     <canvas class="pen" id="pen" width="96" height="96" hidden></canvas>
     <div class="rake-ring" id="ring" hidden></div>
-    <div class="hover-name" id="hoverName" hidden><span class="dot"></span><span id="hoverText"></span></div>
+    <div class="hover-name" id="hoverName" hidden><canvas class="face" id="hoverFace" width="56" height="56" aria-hidden="true"></canvas><span id="hoverText"></span></div>
+    <div class="toast" id="toast" role="status" hidden></div>
     <div class="empty" id="empty"><p id="emptyText">Opening your cubby…</p></div>
   </main>
 
@@ -596,25 +642,26 @@
     <div class="tool" role="group" aria-label="What you make">
       <button class="tool-btn" id="toolBalls" type="button" aria-pressed="true">Cats <span class="emoji" aria-hidden="true">🐱</span></button>
       <button class="tool-btn" id="toolSand" type="button" aria-pressed="false">Sand <span class="emoji" aria-hidden="true">🎊</span></button>
-      <button class="tool-btn" id="toolRake" type="button" aria-pressed="false">Rake <span class="emoji" aria-hidden="true">🧹</span></button>
+      <button class="tool-btn" id="toolRake" type="button" aria-pressed="false" aria-haspopup="true" aria-expanded="false">Rake <span class="emoji" aria-hidden="true">🧹</span></button>
+      <div class="size-pop" id="sizePop" role="group" aria-label="Rake size" hidden></div>
     </div>
     <div class="tool" role="group" aria-label="Sand color">
-      <button class="tool-btn" id="colorGradient" type="button" aria-pressed="true"><span class="ico grad" aria-hidden="true"></span>Gradient color</button>
-      <button class="tool-btn" id="colorSolid" type="button" aria-pressed="false"><span class="ico flat" aria-hidden="true"></span>Solid color</button>
+      <button class="tool-btn" id="colorGradient" type="button" aria-pressed="true">Gradient color <span class="ico grad" aria-hidden="true"></span></button>
+      <button class="tool-btn" id="colorSolid" type="button" aria-pressed="false">Solid color <span class="ico flat" aria-hidden="true"></span></button>
     </div>
     <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
     <span class="count" id="count">0 memories</span>
-    <span class="build" title="Version of this page">v7 · build 2026-11-03b</span>
+    <span class="build" title="Version of this page">v8 · build 2026-11-03d</span>
   </div>
 </div>
 
 <div class="scrim" id="scrim" hidden></div>
-<aside class="panel" id="panel" aria-label="More cat memories" aria-hidden="true">
+<aside class="panel" id="panel" aria-label="More emotions" aria-hidden="true">
   <div class="panel-head">
-    <h2>More memories</h2>
+    <h2>More emotions</h2>
     <button class="close" id="closeMore" type="button" aria-label="Close">&times;</button>
   </div>
-  <div class="panel-list" id="moreList" role="group" aria-label="More cat memories"></div>
+  <div class="panel-list" id="moreList" role="group" aria-label="More emotions"></div>
 </aside>
 
 <div class="dialog-back" id="confirm" hidden>
@@ -867,7 +914,45 @@
   }
   $('toolBalls').addEventListener('click', () => setTool('balls'));
   $('toolSand').addEventListener('click', () => setTool('sand'));
-  $('toolRake').addEventListener('click', () => setTool('rake'));
+  // Rake: tapping it opens the size picker (tap it again, or anywhere else, to close it)
+  const SIZES = CW.RAKE_SIZES;
+  let rakeSize = SIZES[1];
+  SIZES.forEach((sz, n) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'size-btn';
+    b.setAttribute('aria-label', ['Small', 'Medium', 'Large', 'Extra large'][n] + ' rake');
+    b.setAttribute('aria-pressed', sz === rakeSize ? 'true' : 'false');
+    b.innerHTML = '<span style="width:' + (8 + n * 8) + 'px;height:' + (8 + n * 8) + 'px"></span>';
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      rakeSize = sz;
+      $('sizePop').querySelectorAll('.size-btn').forEach(o => o.setAttribute('aria-pressed', o === b ? 'true' : 'false'));
+      sizeRing();
+      showSizes(false);
+    });
+    $('sizePop').appendChild(b);
+  });
+  function showSizes(on) {
+    $('sizePop').hidden = !on;
+    $('toolRake').setAttribute('aria-expanded', on ? 'true' : 'false');
+  }
+  $('toolRake').addEventListener('click', e => {
+    e.stopPropagation();
+    if (tool !== 'rake') { setTool('rake'); showSizes(true); }
+    else showSizes($('sizePop').hidden);
+  });
+  document.addEventListener('click', e => { if (!$('sizePop').hidden && !$('sizePop').contains(e.target)) showSizes(false); });
+
+  // A short message over the sand box.
+  let toastTimer = 0;
+  function toast(text) {
+    const t = $('toast');
+    t.textContent = text;
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 1800);
+  }
   // Gradient or solid sand (for new pours and pops; sand already made keeps its colours). Gradient: a
   // held pour starts at the cat's colour and turns whiter the longer it's held; press again for colour.
   function setColor(isSolid) {
@@ -895,7 +980,7 @@
   // ---- sand mode: hold to pour, like the first Sandfall (the rake works the same way) ----
   // Every frame adds the finger's spot to the pour; every 100 ms the stretch so far is sent as one
   // pour (l: 2, or l: 3 when it carries on from the last stretch's end point), or rake stroke (4, 5).
-  const POUR_MS = 100, BRUSH = 3, RAKE = 6;
+  const POUR_MS = 100, BRUSH = 3;
   const strokes = new Map();
   function startPour(st, lead) {
     st.i = session + ':' + (seq++);
@@ -903,6 +988,7 @@
     st.s = (Math.random() * 4294967296) >>> 0;
     st.c = mood;
     st.solid = solid;
+    st.size = rakeSize;
     if (!lead) st.pressed = st.k;   // a new press: a gradient pour starts again at the cat's own colour
     st.lead = lead; st.pts = [];
     st.t0 = performance.now();
@@ -910,7 +996,7 @@
   function closePour(st, cont) {
     if (st.pts.length) {
       const p = st.lead ? st.lead.concat(st.pts) : st.pts;
-      if (st.rake) add({ i: st.i, k: st.k, c: st.c, r: RAKE, s: st.s, l: st.lead ? 5 : 4, p });
+      if (st.rake) add({ i: st.i, k: st.k, c: st.c, r: st.size, s: st.s, l: st.lead ? 5 : 4, p, t: String(st.pressed) });   // t: this stroke's own look
       else {
         const ch = { i: st.i, k: st.k, c: st.c, r: BRUSH, s: st.s, l: (st.lead ? 3 : 2) | (st.solid ? CW.SOLID : 0), p };
         if (!st.solid) ch.t = String(st.pressed);   // gradient: fades to white the longer this press lasts
@@ -925,6 +1011,11 @@
   function pourFrame(now) {
     for (const st of strokes.values()) {
       st.pts.push(st.x, st.y);
+      // raking empty air: after a moment, a gentle reminder
+      if (st.rake) {
+        if (world.sandNear(st.x, st.y, st.size + 2)) st.air = 0;
+        else if (++st.air === 12) toast('Use the rake on the sand');
+      }
       if (now - st.t0 >= POUR_MS || st.pts.length >= 76) closePour(st, true);
     }
   }
@@ -995,7 +1086,8 @@
     if (tool === 'sand' || tool === 'rake') {
       if (sandBlocked) { showNotice(SAND_RULES); return; }
       try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
-      const st = { x, y, rake: tool === 'rake' };
+      const st = { x, y, rake: tool === 'rake', air: 0 };
+      showSizes(false);
       startPour(st, null);
       strokes.set(e.pointerId, st);
       movePen(e);
@@ -1044,8 +1136,7 @@
     }
     if (c < 0) return hideName();
     const b = box.getBoundingClientRect(), el = $('hoverName');
-    $('hoverText').textContent = MOODS[c].name;
-    el.style.setProperty('--c', MOODS[c].hex);
+    if (el.dataset.c !== String(c)) { el.dataset.c = c; $('hoverText').textContent = MOODS[c].name; drawMarbleOn($('hoverFace'), c); }
     el.style.left = (e.clientX - b.left) + 'px';
     el.style.top = (e.clientY - b.top) + 'px';
     el.hidden = false;
@@ -1080,7 +1171,7 @@
   moreBtn.type = 'button';
   moreBtn.className = 'mood more';
   moreBtn.id = 'more';
-  moreBtn.title = 'More cat memories';
+  moreBtn.title = 'More emotions';
   moreBtn.setAttribute('aria-expanded', 'false');
   moreBtn.setAttribute('aria-controls', 'panel');
   moreBtn.innerHTML = '<span class="ring"><canvas class="orb" width="128" height="128" hidden></canvas><span class="plus" aria-hidden="true">+</span></span><span class="label">More</span>';
@@ -1106,6 +1197,7 @@
     moodButtons.forEach(btn => drawMarbleOn(btn.querySelector('canvas'), Number(btn.dataset.mood)));
     renderMore();
     drawPen();
+    $('hoverName').dataset.c = '';   // the hover label's cat face redraws with the loaded picture
   }
   // The More button shows the chosen side-panel marble, so kids can see what they picked.
   function renderMore() {
@@ -1143,7 +1235,7 @@
   $('closeMore').addEventListener('click', closeMore);
   $('scrim').addEventListener('click', closeMore);
   window.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeMore(); $('confirm').hidden = true; return; }
+    if (e.key === 'Escape') { closeMore(); showSizes(false); $('confirm').hidden = true; return; }
     if (!cubby || !$('confirm').hidden) return;
     const n = parseInt(e.key, 10);
     if (n >= 1 && n <= PICKER.length) selectMood(PICKER[n - 1]);
@@ -1174,8 +1266,11 @@
     world.setSize(Math.floor(GW * s), Math.floor(GH * s));
     const size = Math.round(R * 1.7 * s) + 'px';   // the sand-mode cat: a bit smaller than a marble
     pen.style.width = pen.style.height = size;
-    ring.style.width = ring.style.height = Math.round(RAKE * 2 * s) + 'px';   // the rake's reach
+    scaleNow = s;
+    sizeRing();
   }
+  let scaleNow = 1;
+  function sizeRing() { ring.style.width = ring.style.height = Math.round(rakeSize * 2 * scaleNow) + 'px'; }   // the rake's reach
   new ResizeObserver(fit).observe(box);
 
   let lastCount = -1, lastEmpty = null;

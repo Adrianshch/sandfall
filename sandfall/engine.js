@@ -21,7 +21,7 @@
   const SAND_BAND_MS = 6000;     // a held pour drifts through the cat's light-to-deep shades this often
   const MAX_PATH = 80;           // numbers in one pour's path (40 points)
   const SOLID = 8;               // added to a pop's or pour's `l`: flat-coloured sand
-  const RAKE_R = 6;              // the rake's reach around the finger, in grains
+  const RAKE_SIZES = [4, 6, 9, 13]; // the rake's reach around the finger (its size, sent as r), in grains
   const FADE_MS = 15000;         // gradient pours: the cat's colour fades to white over this much holding
   const kindOf = ch => ch.l & 7; // 0 drop, 1 pop, 2 pour, 3 pour continued, 4 rake, 5 rake continued
 
@@ -36,23 +36,23 @@
   // unpleasant + calm = blue, unpleasant + high energy = red. Each ball gets its own shade.
   const MOODS = [
     { name: 'Curious',  hex: '#d4982e', img: IMG + 'cat-curious.webp' },   // yellow
-    { name: 'Angry',    hex: '#8a1b0d', img: IMG + 'cat-angry.webp' },     // red
+    { name: 'Angry',    hex: '#c12610', img: IMG + 'cat-angry.webp' },     // red
     { name: 'Sad',      hex: '#257b8c', img: IMG + 'cat-sad.webp' },       // blue
     { name: 'Happy',    hex: '#edb75c', img: IMG + 'cat-happy2.webp' },    // yellow
-    { name: 'Scared',   hex: '#9f4c4a', img: IMG + 'cat-scared.webp' },    // red
+    { name: 'Scared',   hex: '#cc512c', img: IMG + 'cat-scared.webp' },    // red
     { name: 'Calm',     hex: '#46805b', img: IMG + 'cat-calm.webp' },      // green
     { name: 'Confused', hex: '#6cb4c4', img: IMG + 'cat-confused.webp' },  // blue
-    { name: 'Excited',  hex: '#d28224', img: IMG + 'cat-excited.webp' },   // yellow
+    { name: 'Excited',  hex: '#e6924b', img: IMG + 'cat-excited.webp' },   // yellow
     { name: 'Hungry',   hex: '#d4982e', img: IMG + 'cat-hungry.webp' },    // yellow (retired from the panel)
     { name: 'Silly',    hex: '#ebc272', img: IMG + 'cat-silly.webp' },     // yellow
-    { name: 'Upset',    hex: '#cf959c', img: IMG + 'cat-upset.webp' },     // red
+    { name: 'Upset',    hex: '#d37898', img: IMG + 'cat-upset.webp' },     // red
     { name: 'Bored',    hex: '#b3a6c8', img: IMG + 'cat-bored.webp' },     // blue
-    { name: 'Nervous',  hex: '#cc512c', img: IMG + 'cat-nervous.webp' },   // red
-    { name: 'Playful',  hex: '#d28224', img: IMG + 'cat-playful.webp' },   // yellow (retired from the panel)
+    { name: 'Nervous',  hex: '#d6725c', img: IMG + 'cat-nervous.webp' },   // red
+    { name: 'Playful',  hex: '#e6924b', img: IMG + 'cat-playful.webp' },   // yellow (retired from the panel)
     { name: 'Chill',    hex: '#adbd8a', img: IMG + 'cat-chill.webp' },     // green
-    { name: 'Worried',  hex: '#8a1b0d', img: IMG + 'cat-worried.webp' },   // red (retired from the panel)
-    { name: 'Focused',  hex: '#657e2e', img: IMG + 'cat-focused.webp' },   // green
-    { name: 'Tired',    hex: '#6f4665', img: IMG + 'cat-tired.webp' },     // blue
+    { name: 'Worried',  hex: '#c12610', img: IMG + 'cat-worried.webp' },   // red (retired from the panel)
+    { name: 'Focused',  hex: '#a5b26b', img: IMG + 'cat-focused.webp' },   // green
+    { name: 'Tired',    hex: '#9981a6', img: IMG + 'cat-tired.webp' },     // blue
   ];
   const PICKER = [3, 2, 4, 6, 5];          // main row: Happy, Sad, Scared, Confused, Calm
   // Side panel: every cat (the starters too), grouped by colour family.
@@ -60,7 +60,7 @@
     { title: 'Yellow', note: 'happy and full of energy', hex: '#edb75c', ids: [3, 7, 0, 9] },
     { title: 'Green',  note: 'happy and calm',           hex: '#46805b', ids: [5, 14, 16] },
     { title: 'Blue',   note: 'upset and low energy',     hex: '#257b8c', ids: [2, 6, 11, 17] },
-    { title: 'Red',    note: 'upset and full of energy', hex: '#8a1b0d', ids: [4, 1, 12, 10] },
+    { title: 'Red',    note: 'upset and full of energy', hex: '#c12610', ids: [4, 1, 12, 10] },
   ];
 
   function rng32(a) {
@@ -209,7 +209,8 @@
     const out = { i, k, c: col, r, s, l, p: p.slice() };
     if (kind === 1 && typeof t === 'string' && t.length <= 120) out.t = t;
     // a gradient pour carries when its press began (t), so its fade to white is the same everywhere
-    if ((kind === 2 || kind === 3) && typeof t === 'string' && /^\d{1,15}$/.test(t)) out.t = t;
+    // ... and a rake stroke carries its press's start too: it picks that stroke's own look
+    if (kind >= 2 && typeof t === 'string' && /^\d{1,15}$/.test(t)) out.t = t;
     return out;
   }
 
@@ -988,30 +989,42 @@
       if (tl) tl.sand(grains, delay);
     }
 
-    // The rake smears colour like paint. Its head is a thin bar across the stroke with tines (2 grains
-    // wide, 2 apart), and each tine works like a brush: it loads up with the colour it first touches,
-    // paints much of that colour onto every grain it passes over, and picks up the colours it crosses.
-    // So each tine leaves a line in any direction, dragging colour along and blending where colours
-    // meet; the gaps between tines get a light smear, so the lines soften at their edges. Grains
-    // don't move (the pile keeps its shape), and nothing is random. Each 100 ms stretch starts its
-    // brushes from the sand under them, which already carries the smear, so lines run on unbroken.
+    // The rake smears colour like paint. Its head is a thin bar across the stroke (as wide as the rake's
+    // size, ch.r) with a tine every TINE grains, and each tine works like a brush: it starts loaded with
+    // the colour just behind it (on a continuing stretch, the line it has just painted, so lines run on
+    // without a seam), paints much of that colour onto every grain it passes over, and picks up the
+    // colours it crosses, so crossing red and blue drags both along. The gaps between tines get a light
+    // smear. Grains don't move (the pile keeps its shape).
+    // Each stroke has its own look, chosen from its press's start (t): every tine its own width, drag and
+    // pick-up. Grains are swapped whole rather than blended (grainy, and the colours stay distinct),
+    // with an occasional grain scattered sideways. All from seeded random numbers, so every screen
+    // draws the same. (Strokes without t, from before, use the plain blended look.)
     const TINE = 4, TINE_W = 2, RAKE_DEPTH = 1.5;
-    const TINE_DRAG = 0.6;           // how much of the brush's colour a grain under a tine takes
-    const GAP_DRAG = 0.15;           // ... and a grain between tines (a light smear, so lines soften at their edges)
-    const PICKUP = 0.03;             // how much of each grain's colour the brush picks up
-    const SWITCH = 24;               // grains of another cat in a row before the brush counts as that cat
+    const TINE_DRAG = 0.6, GAP_DRAG = 0.15, PICKUP = 0.03;
+    const SWITCH = 24;               // grains of another cat in a row before a brush counts as that cat
+    const SCATTER = 0.07;            // share of painted grains nudged a grain sideways
+    function strokeLook(t, r) {
+      const rand = rng32((t ^ 0x5bd1e995) >>> 0), tines = [];
+      for (let lane = 0; lane * TINE <= 2 * r; lane++) {
+        const u = rand();
+        tines.push({ w: u < 0.25 ? 1 : u < 0.8 ? 2 : 3, drag: 0.3 + rand() * 0.25, gap: 0.04 + rand() * 0.06, pick: 0.004 + rand() * 0.008 });
+      }
+      return tines;
+    }
+    const plainLook = r => { const tines = []; for (let lane = 0; lane * TINE <= 2 * r; lane++) tines.push({ w: TINE_W, drag: TINE_DRAG, gap: GAP_DRAG, pick: PICKUP }); return tines; };
     function rakeSand(ch) {
       if (!sandCount) return;
-      const p = ch.p, loads = [];
+      const p = ch.p, loads = [], r = ch.r;
+      const look = ch.t !== undefined ? strokeLook(Number(ch.t), r) : plainLook(r);
+      const rand = ch.t !== undefined ? rng32(ch.s) : null;
       let px = p[0], py = p[1];
-      // each brush starts loaded with the colour just behind its tine: on a continuing stretch that is
-      // the line it has just painted, so the line carries on without a seam
+      // each brush starts loaded with the colour just behind its tine
       for (let j = 2; j < p.length; j += 2) {
         const dx = p[j] - px, dy = p[j + 1] - py, d = Math.sqrt(dx * dx + dy * dy);
         if (!d) continue;
         const ux = dx / d, uy = dy / d;
-        for (let lane = 0; lane * TINE <= 2 * RAKE_R; lane++) {
-          const off = lane * TINE + TINE_W / 2 - RAKE_R;
+        for (let lane = 0; lane < look.length; lane++) {
+          const off = lane * TINE + look[lane].w / 2 - r;
           const gx = Math.floor(px - uy * off - ux * (RAKE_DEPTH + 1)), gy = Math.floor(py + ux * off - uy * (RAKE_DEPTH + 1));
           if (gx < 0 || gx >= SW || gy < 0 || gy >= SH) continue;
           const i = gy * SW + gx;
@@ -1023,7 +1036,7 @@
         const x = p[j], y = p[j + 1], dx = x - px, dy = y - py, d = Math.sqrt(dx * dx + dy * dy);
         if (d) {
           const ux = dx / d, uy = dy / d, steps = Math.ceil(d);
-          for (let k = 1; k <= steps; k++) rakeAt(px + dx * k / steps, py + dy * k / steps, ux, uy, loads);
+          for (let k = 1; k <= steps; k++) rakeAt(px + dx * k / steps, py + dy * k / steps, ux, uy, r, look, loads, rand);
         }
         px = x; py = y;
       }
@@ -1033,26 +1046,62 @@
       const r = (cr + ((e & 255) - cr) * w) | 0, g = (cg + (((e >> 8) & 255) - cg) * w) | 0, b = (cb + (((e >> 16) & 255) - cb) * w) | 0;
       return ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;
     };
-    function rakeAt(cx, cy, ux, uy, loads) {
-      const r = RAKE_R, reach = r + RAKE_DEPTH;
+    function rakeAt(cx, cy, ux, uy, r, look, loads, rand) {
+      const reach = r + RAKE_DEPTH;
       const x0 = Math.max(0, Math.floor(cx - reach)), x1 = Math.min(SW - 1, Math.floor(cx + reach));
       const y0 = Math.max(0, Math.floor(cy - reach)), y1 = Math.min(SH - 1, Math.floor(cy + reach));
       for (let gy = y0; gy <= y1; gy++) for (let gx = x0; gx <= x1; gx++) {
         const dx = gx + 0.5 - cx, dy = gy + 0.5 - cy;
         const along = dx * ux + dy * uy, side = dx * -uy + dy * ux + r;   // side: 0 to 2r across the rake
         if (along < -RAKE_DEPTH || along > RAKE_DEPTH || side < 0 || side > 2 * r) continue;
-        const lane = Math.floor(side / TINE), gap = side - lane * TINE >= TINE_W;
+        const lane = Math.floor(side / TINE), tine = look[lane];
+        if (!tine) continue;
+        const gap = side - lane * TINE >= tine.w;
         const i = gy * SW + gx, c = sand[i];
         if (!c) continue;
         const L = loads[lane];
         if (!L) { if (!gap) loads[lane] = { c, o: own[i], other: 0 }; continue; }   // the brush loads up here
-        if (gap) { sand[i] = mixColour(c, L.c, GAP_DRAG); continue; }   // between tines: a light smear only
-        sand[i] = mixColour(c, L.c, TINE_DRAG);
-        const o = own[i];
-        own[i] = L.o;
-        L.c = mixColour(L.c, c, PICKUP);
-        if (o && o !== L.o) { if (++L.other >= SWITCH) { L.o = o; L.other = 0; } } else L.other = 0;
+        if (rand) {
+          // a stroke with its own look: grains are swapped whole, never blended, so colours stay distinct
+          // and the streaks look grainy. A grain under a tine takes the brush's colour now and then (the
+          // tine's drag), one in a gap more rarely; and now and then the brush picks up the colour it
+          // passes, so crossing red and blue drags both along.
+          const o = own[i];
+          if (rand() < (gap ? tine.gap : tine.drag)) { sand[i] = L.c; own[i] = L.o; }
+          if (!gap && rand() < tine.pick) { L.c = c; L.o = o; }
+          if (gap) continue;
+        } else {
+          if (gap) { sand[i] = mixColour(c, L.c, tine.gap); continue; }
+          sand[i] = mixColour(c, L.c, tine.drag);
+          const o = own[i];
+          own[i] = L.o;
+          L.c = mixColour(L.c, c, tine.pick);
+          if (o && o !== L.o) { if (++L.other >= SWITCH) { L.o = o; L.other = 0; } } else L.other = 0;
+        }
+        // now and then a grain gets nudged sideways, scattering the dragged colours a little
+        if (rand && rand() < SCATTER) {
+          const sd = rand() < 0.5 ? -1 : 1;
+          const qx = Math.round(gx - uy * sd), qy = Math.round(gy + ux * sd);
+          if (qx >= 0 && qx < SW && qy >= 0 && qy < SH) {
+            const q = qy * SW + qx;
+            if (sand[q] && q !== i) {
+              const e = sand[i]; sand[i] = sand[q]; sand[q] = e;
+              const f = own[i]; own[i] = own[q]; own[q] = f;
+            }
+          }
+        }
       }
+    }
+
+    // Any sand within rad of (x, y)? (The page warns when the rake is used on empty air.)
+    function sandNear(x, y, rad) {
+      const x0 = Math.max(0, Math.floor(x - rad)), x1 = Math.min(SW - 1, Math.floor(x + rad));
+      const y0 = Math.max(0, Math.floor(y - rad)), y1 = Math.min(SH - 1, Math.floor(y + rad));
+      for (let gy = y0; gy <= y1; gy++) for (let gx = x0; gx <= x1; gx++) {
+        const dx = gx + 0.5 - x, dy = gy + 0.5 - y;
+        if (dx * dx + dy * dy <= rad * rad && sand[gy * SW + gx]) return true;
+      }
+      return false;
     }
 
     function place(ch, tl) {
@@ -1393,7 +1442,7 @@
 
     return {
       canvas, popping,
-      addChunk, commit, resetLog, startFrom, savedState, setSize, render, marbleOnScreen, formingAt, sandCatAt,
+      addChunk, commit, resetLog, startFrom, savedState, setSize, render, marbleOnScreen, formingAt, sandCatAt, sandNear,
       // memories in the picture (merged marbles hold several)
       memories() { let n = 0; for (const b of balls) n += b.n; return n; },
       isEmpty: () => balls.length === 0 && sandCount === 0 && anims.length === 0 && committed === chunks.length,
@@ -1455,7 +1504,7 @@
 
   window.CatWorld = {
     GW, GH, R, REPEAT_MS, MOODS, PICKER, MORE_GROUPS,
-    createWorld, valid, nextKey, paintMarble, now: logicalNow, SOLID,
+    createWorld, valid, nextKey, paintMarble, now: logicalNow, SOLID, RAKE_SIZES,
     canPack, packState, unpackState,
     setClockOffset(ms) { clockOffset = ms; },
     onImages(f) { imageListeners.push(f); },

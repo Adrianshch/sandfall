@@ -112,7 +112,7 @@ body {
 
 /* The wall: the colab picture (bigger) beside every student cubby, sized by wall.js so they all fit
    on screen, and the whole class's cat bar in its own column on the right. */
-.wall { flex: 1; min-height: 0; display: flex; gap: 20px; }
+.wall { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
 .stage { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: auto; }
 .stage-row { display: flex; align-items: center; justify-content: center; min-height: 100%; }
 .colab { flex: none; display: flex; flex-direction: column; gap: 6px; }
@@ -133,9 +133,31 @@ body {
   color: var(--muted);
   text-wrap: balance;
 }
-.class-mix { flex: none; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
-.class-box { flex: 1; min-height: 0; }
-.class-box canvas { display: block; }
+/* The class emotions bar: one thick bar across the top; point at a colour for its cat and name */
+.class-mix { flex: none; display: flex; align-items: center; gap: 12px; }
+.class-box { flex: 1; min-width: 0; height: clamp(30px, 5.5vh, 56px); }
+.class-box canvas { display: block; cursor: default; }
+/* hover names: the cat's face and the emotion, beside the pointer */
+.hover-name {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 40;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  font: 700 0.95rem var(--font-body);
+  color: var(--ink);
+  white-space: nowrap;
+  translate: 14px -130%;
+}
+.hover-name .face { width: 26px; height: 26px; border-radius: 50%; }
 .tile {
   position: relative;
   display: flex;
