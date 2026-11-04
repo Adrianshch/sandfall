@@ -107,6 +107,7 @@ The v5 cat ball game, one private picture per student.
 - `config.js`: public Firebase settings. Fine to commit.
 - `database.rules.json`: template for the Firebase security rules. Ignored by git on purpose: the user puts their teacher code into the copy in the Firebase console, never in the repo. If the rules change, tell the user to paste the new version into Firebase and re-enter their code.
 - `README.md`: setup guide for teachers.
+- `printouts/zones.html` → `printouts/sand-emotions-zones.pdf`: a one-page landscape US Letter poster modelled on the user's "zones" sheet (main squares only, no "I can try" row): title "How are you feeling?", Blue / Green / Yellow / Red zone columns (two-line headings like the template, the game's family colours), each with its four cats as game balls (`paintMarble`) and labels, footer "Sand Emotions". Rebuild the PDF with Playwright `page.pdf({ preferCSSPageSize: true, printBackground: true })` after the cats or colours change. Online: https://adrianshch.github.io/sandfall/printouts/sand-emotions-zones.pdf
 
 ## Things that must stay true
 

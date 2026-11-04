@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sand Emotions · Zones</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+  /* One landscape US Letter page: the four colour zones, four cats each, from the Sand Emotions game. */
+  @page { size: 11in 8.5in; margin: 0; }
+  html, body { margin: 0; background: #fff; }
+  body {
+    width: 11in;
+    height: 8.5in;
+    box-sizing: border-box;
+    padding: 0.4in 0.35in;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.3in;
+    font-family: "Atkinson Hyperlegible", Verdana, sans-serif;
+    color: #1c2530;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  h1 { margin: 0; text-align: center; font-size: 40pt; font-weight: 700; letter-spacing: -0.01em; }
+  .zones { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.16in; }
+  .zone {
+    background: var(--z);
+    border-radius: 0.14in;
+    padding: 0.16in 0.14in 0.18in;
+    display: flex;
+    flex-direction: column;
+    gap: 0.14in;
+  }
+  .zone h2 { margin: 0.06in 0 0.06in; text-align: center; font-size: 30pt; font-weight: 700; line-height: 1.02; color: var(--t); }
+  .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.14in 0.12in; }
+  .card {
+    background: #fff;
+    border: 0.045in solid var(--b);
+    border-radius: 0.1in;
+    padding: 0.08in 0.03in 0.08in;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.05in;
+    aspect-ratio: 1 / 1.55;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .card canvas { width: 96%; aspect-ratio: 1; display: block; margin-top: 0.06in; }
+  .card span { font-size: 13.5pt; font-weight: 700; line-height: 1; margin: auto 0 0.04in; white-space: nowrap; }
+  footer { text-align: center; font-size: 10pt; color: #5a6876; margin-top: -0.12in; }
+</style>
+</head>
+<body>
+<h1>How are you feeling?</h1>
+<div class="zones" id="zones"></div>
+<footer>Sand Emotions</footer>
+<script src="../sandfall/engine.js"></script>
+<script>
+  // The zones in the template's order, each with its four cats (the game's colour families).
+  const CW = window.CatWorld;
+  const ZONES = [
+    { title: 'Blue zone',   family: 'Blue',   z: '#257b8c', b: '#1b5a67', t: '#fff' },
+    { title: 'Green zone',  family: 'Green',  z: '#46805b', b: '#2f5a3f', t: '#fff' },
+    { title: 'Yellow zone', family: 'Yellow', z: '#edb75c', b: '#c08a2c', t: '#1c2530' },
+    { title: 'Red zone',    family: 'Red',    z: '#c12610', b: '#8a1b0d', t: '#fff' },
+  ];
+  const balls = [];
+  for (const zone of ZONES) {
+    const el = document.createElement('section');
+    el.className = 'zone';
+    el.style.cssText = '--z:' + zone.z + ';--b:' + zone.b + ';--t:' + zone.t;
+    el.innerHTML = '<h2>' + zone.title.replace(' ', '<br>') + '</h2><div class="cards"></div>';   // two lines, like the template
+    const ids = CW.MORE_GROUPS.find(g => g.title === zone.family).ids;
+    for (const i of ids) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      const c = document.createElement('canvas');
+      c.width = c.height = 360;                 // about 360 dpi when printed (each ball is about an inch)
+      const label = document.createElement('span');
+      label.textContent = CW.MOODS[i].name;
+      card.append(c, label);
+      el.querySelector('.cards').appendChild(card);
+      balls.push([c, i]);
+    }
+    document.getElementById('zones').appendChild(el);
+  }
+  function draw() {
+    for (const [c, i] of balls) {
+      const g = c.getContext('2d');
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, c.width, c.height);
+      g.translate(c.width / 2, c.height / 2);
+      CW.paintMarble(g, i, c.width / 2 - 4, 0);
+    }
+  }
+  CW.onImages(draw);
+  draw();
+</script>
+</body>
+</html>
