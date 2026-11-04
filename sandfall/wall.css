@@ -1,5 +1,7 @@
 /* Sand Emotions v6: the class wall (display/ and admin-cappy/). Same look as the cubby page. */
 [hidden] { display: none !important; }
+/* no double-tap zoom on tablets */
+* { touch-action: manipulation; }
 :root {
   --bg: #e4e9ed;
   --sky: #f3f6f8;

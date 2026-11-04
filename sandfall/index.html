@@ -14,6 +14,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap">
 <style>
   [hidden] { display: none !important; }
+  /* no double-tap zoom on tablets (it gets in the way of tapping fast); the sand box handles its own touches */
+  * { touch-action: manipulation; }
   :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
   body { margin: 0; font-size: 14px; }
 
@@ -231,7 +233,8 @@
   }
   .more .plus { font: 600 1.9rem/1 var(--font-display); color: var(--muted); }
   .more .ring .orb { position: absolute; inset: -2px; width: 72px; height: 72px; }
-  .more[aria-pressed="true"] .ring { border-color: transparent; }
+  .more[aria-pressed="true"] .ring { border: 3px solid var(--c); box-shadow: 0 0 14px 2px color-mix(in srgb, var(--c) 45%, transparent); }
+  .more[aria-pressed="true"] .plus { color: var(--ink); }
   .more[aria-pressed="true"] .orb { transform: translateY(-3px) scale(1.12); box-shadow: 0 0 26px 8px color-mix(in srgb, var(--c) 75%, transparent); }
   .more:hover .ring { transform: translateY(-2px); }
 
@@ -571,8 +574,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../config.js"></script>
-<script src="engine.js?v=2026-11-03d"></script>
-<script src="cubbies.js?v=2026-11-03d"></script>
+<script src="engine.js?v=2026-11-04a"></script>
+<script src="cubbies.js?v=2026-11-04a"></script>
 </head>
 <body data-mode="play" data-tool="balls">
 
@@ -606,7 +609,7 @@
       </div>
     </form>
     <p class="msg" id="startMsg" role="status"></p>
-    <span class="build" title="Version of this page">v8 · build 2026-11-03d</span>
+    <span class="build" title="Version of this page">v8 · build 2026-11-04a</span>
   </div>
 </section>
 
@@ -651,7 +654,7 @@
     </div>
     <div class="moods" id="moods" role="group" aria-label="Memory color by feeling"></div>
     <span class="count" id="count">0 memories</span>
-    <span class="build" title="Version of this page">v8 · build 2026-11-03d</span>
+    <span class="build" title="Version of this page">v8 · build 2026-11-04a</span>
   </div>
 </div>
 
@@ -1200,15 +1203,16 @@
     $('hoverName').dataset.c = '';   // the hover label's cat face redraws with the loaded picture
   }
   // The More button shows the chosen side-panel marble, so kids can see what they picked.
+  // The More button always stays "More" with its plus, so it never seems to disappear. When the cat
+  // in use came from the panel, its ring turns that cat's colour as a hint.
   function renderMore() {
     const extra = !PICKER.includes(mood);     // chosen from the panel and not in the main row
-    const c = moreBtn.querySelector('canvas');
-    c.hidden = !extra;
-    moreBtn.querySelector('.plus').hidden = extra;
+    moreBtn.querySelector('canvas').hidden = true;
+    moreBtn.querySelector('.plus').hidden = false;
     moreBtn.setAttribute('aria-pressed', extra ? 'true' : 'false');
     moreBtn.style.setProperty('--c', extra ? MOODS[mood].hex : 'transparent');
-    moreBtn.querySelector('.label').textContent = extra ? MOODS[mood].name : 'More';
-    if (extra) drawMarbleOn(c, mood);
+    moreBtn.querySelector('.label').textContent = 'More';
+    moreBtn.title = extra ? 'More emotions (now: ' + MOODS[mood].name + ')' : 'More emotions';
   }
   function selectMood(i) {
     mood = i;
