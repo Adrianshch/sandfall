@@ -30,7 +30,7 @@
   // Cat memories. The array index is what drops store, so existing entries keep their
   // place and new ones go on the end.
   // Bump this whenever a cat picture changes, so browsers fetch the new one instead of a saved copy.
-  const ASSET_V = '2026-10-20d';
+  const ASSET_V = '2026-11-04a';
 
   // Colours come from the class palette (2026-11-02) and follow the mood meter: pleasant + calm = green, pleasant + high energy = yellow,
   // unpleasant + calm = blue, unpleasant + high energy = red. Each ball gets its own shade.
@@ -53,12 +53,13 @@
     { name: 'Worried',  hex: '#c12610', img: IMG + 'cat-worried.webp' },   // red (retired from the panel)
     { name: 'Focused',  hex: '#a5b26b', img: IMG + 'cat-focused.webp' },   // green
     { name: 'Tired',    hex: '#9981a6', img: IMG + 'cat-tired.webp' },     // blue
+    { name: 'OK',       hex: '#7e8240', img: IMG + 'cat-ok.webp' },        // green (added 2026-11-04, the user's photo)
   ];
   const PICKER = [3, 2, 4, 6, 5];          // main row: Happy, Sad, Scared, Confused, Calm
   // Side panel: every cat (the starters too), grouped by colour family.
   const MORE_GROUPS = [
     { title: 'Yellow', note: 'happy and full of energy', hex: '#edb75c', ids: [3, 7, 0, 9] },
-    { title: 'Green',  note: 'happy and calm',           hex: '#46805b', ids: [5, 14, 16] },
+    { title: 'Green',  note: 'happy and calm',           hex: '#46805b', ids: [5, 14, 16, 18] },
     { title: 'Blue',   note: 'upset and low energy',     hex: '#257b8c', ids: [2, 6, 11, 17] },
     { title: 'Red',    note: 'upset and full of energy', hex: '#c12610', ids: [4, 1, 12, 10] },
   ];
